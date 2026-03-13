@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web Server (Persistent Data)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "web-server",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--web-hostname",
+        "127.0.0.1",
+        "--web-port",
+        "7357"
+      ]
+    }
+  ]
+}
