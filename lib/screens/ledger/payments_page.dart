@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/app_theme.dart';
 import '../../core/utils/helpers.dart';
+import '../../models/party.dart';
 import '../../models/payment.dart';
 import '../../providers/ledger_provider.dart';
 import '../../widgets/data_table_widget.dart';
@@ -394,6 +395,92 @@ class _PaymentDialogState extends State<_PaymentDialog> {
   final _notesCtrl = TextEditingController();
   bool _saving = false;
 
+  String? _selectedPartyName(List<Party> parties) {
+    if (_partyId == null) return null;
+    for (final party in parties) {
+      if (party.id == _partyId) return party.name;
+    }
+    return null;
+  }
+
+  Future<void> _openPartyPicker(List<Party> parties) async {
+    if (parties.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final q = query.trim().toLowerCase();
+            final filtered = parties
+                .where((p) => p.name.toLowerCase().contains(q))
+                .toList();
+
+            return AlertDialog(
+              title: const Text('Select Party'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search party',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() => query = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(
+                              child: Text('No party matches your search.'),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final party = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(party.name),
+                                  trailing: party.id == _partyId
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, party.id),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() => _partyId = selectedId);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -443,6 +530,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final ledger = context.watch<LedgerProvider>();
+    final selectedPartyName = _selectedPartyName(ledger.parties);
 
     return AlertDialog(
       title: const Text('Add Payment'),
@@ -454,14 +542,29 @@ class _PaymentDialogState extends State<_PaymentDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<int>(
-                  initialValue: _partyId,
-                  decoration: const InputDecoration(labelText: 'Party *', border: OutlineInputBorder()),
-                  items: ledger.parties.isEmpty
-                      ? const [DropdownMenuItem(value: -1, child: Text('No parties found'))]
-                      : ledger.parties.map((p) => DropdownMenuItem(value: p.id, child: Text(p.name))).toList(),
-                  onChanged: ledger.parties.isEmpty ? null : (v) => setState(() => _partyId = v),
-                  validator: (v) => v == null ? 'Required' : null,
+                InkWell(
+                  onTap: ledger.parties.isEmpty
+                      ? null
+                      : () => _openPartyPicker(ledger.parties),
+                  borderRadius: BorderRadius.circular(4),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Party *',
+                      border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.search),
+                    ),
+                    child: Text(
+                      selectedPartyName ??
+                          (ledger.parties.isEmpty
+                              ? 'No parties found'
+                              : 'Search and select party'),
+                      style: TextStyle(
+                        color: selectedPartyName == null
+                            ? AppTheme.textSecondary
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
