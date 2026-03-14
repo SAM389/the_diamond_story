@@ -1,6 +1,18 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/services/backup_service.dart';
 import '../../core/utils/app_theme.dart';
+import '../../core/utils/file_io.dart';
+import '../../providers/inventory_provider.dart';
+import '../../providers/ledger_provider.dart';
+import '../../providers/process_provider.dart';
 import '../../widgets/data_table_widget.dart';
 
 class BackupRestorePage extends StatefulWidget {
@@ -27,7 +39,37 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   }
 
   void _exportCsv() async {
-    _showMessage('CSV export feature coming soon');
+    showDialog(
+      context: context,
+      builder: (_) => _CsvExportDialog(
+        onExport: (password) async {
+          try {
+            if (password.trim().isEmpty) {
+              _showMessage('Password is required', isError: true);
+              return false;
+            }
+
+            final bytes = await BackupService.exportToCsvZip();
+            final fileName = BackupService.generateExportFileName();
+            final saved = await _saveBytesForUser(
+              bytes: bytes,
+              fileName: fileName,
+              extensions: const ['zip'],
+            );
+            if (!saved) {
+              _showMessage('CSV export cancelled', isError: true);
+              return false;
+            }
+
+            _showMessage('CSV export downloaded successfully');
+            return true;
+          } catch (e) {
+            _showMessage('CSV export failed: $e', isError: true);
+            return false;
+          }
+        },
+      ),
+    );
   }
 
   void _createBackup() async {
@@ -35,8 +77,36 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       context: context,
       builder: (_) => _BackupDialog(
         onBackup: (password) async {
-          Navigator.pop(context);
-          _showMessage('Backup created successfully');
+          try {
+            final passwordFileName = _passwordFileName();
+            final passwordSaved = await _saveBytesForUser(
+              bytes: Uint8List.fromList(utf8.encode(_passwordFileContent(password))),
+              fileName: passwordFileName,
+              extensions: const ['txt'],
+            );
+            if (!passwordSaved) {
+              _showMessage('Password download cancelled', isError: true);
+              return false;
+            }
+
+            final csvZipBytes = await BackupService.exportToCsvZip();
+            final csvFileName = BackupService.generateExportFileName();
+            final csvSaved = await _saveBytesForUser(
+              bytes: csvZipBytes,
+              fileName: csvFileName,
+              extensions: const ['zip'],
+            );
+            if (!csvSaved) {
+              _showMessage('Password downloaded, CSV download cancelled', isError: true);
+              return false;
+            }
+
+            _showMessage('Backup complete: password file and CSV backup downloaded');
+            return true;
+          } catch (e) {
+            _showMessage('Backup failed: $e', isError: true);
+            return false;
+          }
         },
       ),
     );
@@ -46,12 +116,100 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     showDialog(
       context: context,
       builder: (_) => _RestoreDialog(
-        onRestore: (password) async {
-          Navigator.pop(context);
-          _showMessage('Database restored successfully');
+        onRestore: () async {
+          try {
+            final picked = await FilePicker.platform.pickFiles(
+              type: FileType.custom,
+              allowedExtensions: const ['zip'],
+              withData: true,
+            );
+
+            if (picked == null || picked.files.isEmpty) {
+              _showMessage('Restore cancelled', isError: true);
+              return false;
+            }
+
+            final file = picked.files.first;
+            Uint8List? bytes = file.bytes;
+            if (bytes == null && file.path != null) {
+              bytes = await readBackupFile(file.path!);
+            }
+            if (bytes == null) {
+              _showMessage('Could not read selected backup file', isError: true);
+              return false;
+            }
+
+            final restoreResult = await BackupService.restoreFromCsvZipBytes(
+              bytes,
+              merge: true,
+            );
+
+            if (!mounted) return false;
+            await Future.wait([
+              context.read<LedgerProvider>().loadAll(),
+              context.read<InventoryProvider>().loadAll(),
+              context.read<ProcessProvider>().loadAll(),
+            ]);
+
+            _showMessage(
+              'Restore complete: ${restoreResult.inserted} inserted, '
+              '${restoreResult.overwritten} overwritten, '
+              '${restoreResult.skipped} skipped.',
+            );
+            return true;
+          } catch (e) {
+            _showMessage('Restore failed: $e', isError: true);
+            return false;
+          }
         },
       ),
     );
+  }
+
+  Future<bool> _saveBytesForUser({
+    required Uint8List bytes,
+    required String fileName,
+    required List<String> extensions,
+  }) async {
+    if (kIsWeb) {
+      triggerDownload(bytes, fileName);
+      return true;
+    }
+
+    final savePath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save $fileName',
+      fileName: fileName,
+      type: FileType.custom,
+      allowedExtensions: extensions,
+    );
+
+    if (savePath == null || savePath.isEmpty) {
+      return false;
+    }
+
+    await saveBackupFile(savePath, bytes);
+    return true;
+  }
+
+  String _passwordFileName() {
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .substring(0, 19)
+        .replaceAll(':', '-')
+        .replaceAll('T', '_');
+    return 'backup_password_$stamp.txt';
+  }
+
+  String _passwordFileContent(String password) {
+    return [
+      'Diamond Story Backup Password',
+      'Created: ${DateTime.now().toIso8601String()}',
+      '',
+      'Password:',
+      password,
+      '',
+      'Keep this file safe. You may need it for encrypted backups.',
+    ].join('\n');
   }
 
   @override
@@ -231,7 +389,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
 }
 
 class _BackupDialog extends StatefulWidget {
-  final Function(String password) onBackup;
+  final Future<bool> Function(String password) onBackup;
   const _BackupDialog({required this.onBackup});
 
   @override
@@ -256,7 +414,13 @@ class _BackupDialogState extends State<_BackupDialog> {
       return;
     }
     setState(() => _saving = true);
-    await widget.onBackup(_passwordCtrl.text);
+    final success = await widget.onBackup(_passwordCtrl.text);
+    if (!mounted) return;
+    if (success) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _saving = false);
   }
 
   @override
@@ -298,15 +462,15 @@ class _BackupDialogState extends State<_BackupDialog> {
   }
 }
 
-class _RestoreDialog extends StatefulWidget {
-  final Function(String password) onRestore;
-  const _RestoreDialog({required this.onRestore});
+class _CsvExportDialog extends StatefulWidget {
+  final Future<bool> Function(String password) onExport;
+  const _CsvExportDialog({required this.onExport});
 
   @override
-  State<_RestoreDialog> createState() => _RestoreDialogState();
+  State<_CsvExportDialog> createState() => _CsvExportDialogState();
 }
 
-class _RestoreDialogState extends State<_RestoreDialog> {
+class _CsvExportDialogState extends State<_CsvExportDialog> {
   final _passwordCtrl = TextEditingController();
   bool _saving = false;
 
@@ -323,8 +487,76 @@ class _RestoreDialogState extends State<_RestoreDialog> {
       );
       return;
     }
+
     setState(() => _saving = true);
-    await widget.onRestore(_passwordCtrl.text);
+    final success = await widget.onExport(_passwordCtrl.text);
+    if (!mounted) return;
+    if (success) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Export CSV'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter password before exporting CSV data',
+              style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _passwordCtrl,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              obscureText: true,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Export'),
+        ),
+      ],
+    );
+  }
+}
+
+class _RestoreDialog extends StatefulWidget {
+  final Future<bool> Function() onRestore;
+  const _RestoreDialog({required this.onRestore});
+
+  @override
+  State<_RestoreDialog> createState() => _RestoreDialogState();
+}
+
+class _RestoreDialogState extends State<_RestoreDialog> {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final success = await widget.onRestore();
+    if (!mounted) return;
+    if (success) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _saving = false);
   }
 
   @override
@@ -337,18 +569,13 @@ class _RestoreDialogState extends State<_RestoreDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Enter your backup password',
+              'Select your backup CSV ZIP file to import data into this system.',
               style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
             ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _passwordCtrl,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              ),
-              obscureText: true,
+            const SizedBox(height: 12),
+            Text(
+              'Imported records merge with current data, and matching records are overwritten.',
+              style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
             ),
           ],
         ),

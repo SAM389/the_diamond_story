@@ -16,6 +16,9 @@ class SalesPage extends StatefulWidget {
 }
 
 class _SalesPageState extends State<SalesPage> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +26,12 @@ class _SalesPageState extends State<SalesPage> {
       context.read<LedgerProvider>().loadAll();
       context.read<InventoryProvider>().loadDiamonds();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -35,16 +44,35 @@ class _SalesPageState extends State<SalesPage> {
           child: PageHeader(
             title: 'Sales',
             subtitle: 'Record diamond sales',
-            action: FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Add Sale'),
-              onPressed: () async {
-                await context.read<InventoryProvider>().loadDiamonds();
-                await showDialog<bool>(
-                  context: context,
-                  builder: (_) => const _SaleDialog(),
-                );
-              },
+            action: Row(
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search sales',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Sale'),
+                  onPressed: () async {
+                    await context.read<InventoryProvider>().loadDiamonds();
+                    await showDialog<bool>(
+                      context: context,
+                      builder: (_) => const _SaleDialog(),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
@@ -58,6 +86,16 @@ class _SalesPageState extends State<SalesPage> {
                 );
               }
 
+              final sales = provider.sales.where((sale) {
+                if (_searchQuery.isEmpty) return true;
+
+                return (sale.partyName ?? '').toLowerCase().contains(_searchQuery) ||
+                    (sale.diamondCode ?? '').toLowerCase().contains(_searchQuery) ||
+                    sale.date.toLowerCase().contains(_searchQuery) ||
+                    (sale.notes ?? '').toLowerCase().contains(_searchQuery) ||
+                    sale.price.toString().contains(_searchQuery);
+              }).toList();
+
               if (provider.sales.isEmpty) {
                 return const EmptyState(
                   message: 'No sales yet.',
@@ -66,14 +104,21 @@ class _SalesPageState extends State<SalesPage> {
                 );
               }
 
+              if (sales.isEmpty) {
+                return const EmptyState(
+                  message: 'No sales match your search.',
+                  icon: Icons.search_off_rounded,
+                );
+              }
+
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStats(provider.sales),
+                    _buildStats(sales),
                     const SizedBox(height: 16),
-                    Expanded(child: _buildTable(provider.sales)),
+                    Expanded(child: _buildTable(sales)),
                   ],
                 ),
               );

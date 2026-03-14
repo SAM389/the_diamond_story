@@ -17,6 +17,9 @@ class ProcessListPage extends StatefulWidget {
 }
 
 class _ProcessListPageState extends State<ProcessListPage> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -24,6 +27,12 @@ class _ProcessListPageState extends State<ProcessListPage> {
       context.read<ProcessProvider>().loadAll();
       context.read<InventoryProvider>().loadDiamonds();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _showCompleteDialog(Process process) async {
@@ -91,22 +100,41 @@ class _ProcessListPageState extends State<ProcessListPage> {
           child: PageHeader(
             title: 'Processes',
             subtitle: 'Track diamond manufacturing processes',
-            action: FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Add Process'),
-              onPressed: () async {
-                final added = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddProcessPage()),
-                );
-                if (!mounted) {
-                  return;
-                }
-                this.context.read<ProcessProvider>().loadAll();
-                if (added == true) {
-                  showSuccessSnack(this.context, 'Process added');
-                }
-              },
+            action: Row(
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search processes',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Process'),
+                  onPressed: () async {
+                    final added = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AddProcessPage()),
+                    );
+                    if (!mounted) {
+                      return;
+                    }
+                    this.context.read<ProcessProvider>().loadAll();
+                    if (added == true) {
+                      showSuccessSnack(this.context, 'Process added');
+                    }
+                  },
+                ),
+              ],
             ),
           ),
         ),
@@ -120,6 +148,18 @@ class _ProcessListPageState extends State<ProcessListPage> {
                 );
               }
 
+              final processes = provider.processes.where((process) {
+                if (_searchQuery.isEmpty) return true;
+
+                return (process.diamondCode ?? '').toLowerCase().contains(_searchQuery) ||
+                    (process.processTypeName ?? '').toLowerCase().contains(_searchQuery) ||
+                    process.partyName.toLowerCase().contains(_searchQuery) ||
+                    process.status.toLowerCase().contains(_searchQuery) ||
+                    process.fromDate.toLowerCase().contains(_searchQuery) ||
+                    (process.toDate ?? '').toLowerCase().contains(_searchQuery) ||
+                    process.fee.toString().contains(_searchQuery);
+              }).toList();
+
               if (provider.processes.isEmpty) {
                 return const EmptyState(
                   message:
@@ -129,14 +169,21 @@ class _ProcessListPageState extends State<ProcessListPage> {
                 );
               }
 
+              if (processes.isEmpty) {
+                return const EmptyState(
+                  message: 'No processes match your search.',
+                  icon: Icons.search_off_rounded,
+                );
+              }
+
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStats(provider.processes),
+                    _buildStats(processes),
                     const SizedBox(height: 16),
-                    Expanded(child: _buildTable(provider.processes)),
+                    Expanded(child: _buildTable(processes)),
                   ],
                 ),
               );

@@ -16,6 +16,8 @@ class DiamondsPage extends StatefulWidget {
 
 class _DiamondsPageState extends State<DiamondsPage> {
   String _filterStatus = 'all';
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   void _showEditCodeDialog(Diamond diamond) {
     showDialog(
@@ -33,6 +35,12 @@ class _DiamondsPageState extends State<DiamondsPage> {
   }
 
   @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -43,9 +51,28 @@ class _DiamondsPageState extends State<DiamondsPage> {
           child: PageHeader(
             title: 'Diamonds',
             subtitle: 'Inventory \u203a Diamonds',
-            action: _StatusFilter(
-              value: _filterStatus,
-              onChanged: (v) => setState(() => _filterStatus = v),
+            action: Row(
+              children: [
+                SizedBox(
+                  width: 220,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search diamonds',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _StatusFilter(
+                  value: _filterStatus,
+                  onChanged: (v) => setState(() => _filterStatus = v),
+                ),
+              ],
             ),
           ),
         ),
@@ -59,11 +86,19 @@ class _DiamondsPageState extends State<DiamondsPage> {
                   child: TableSkeleton(rows: 6),
                 );
               }
-              final diamonds = _filterStatus == 'all'
-                  ? provider.diamonds
-                  : provider.diamonds
-                      .where((d) => d.status == _filterStatus)
-                      .toList();
+
+              final diamonds = provider.diamonds.where((d) {
+                final matchesStatus =
+                    _filterStatus == 'all' ? true : d.status == _filterStatus;
+                if (!matchesStatus) return false;
+                if (_searchQuery.isEmpty) return true;
+
+                return d.diamondCode.toLowerCase().contains(_searchQuery) ||
+                    d.parentLot.toLowerCase().contains(_searchQuery) ||
+                    d.status.toLowerCase().contains(_searchQuery) ||
+                  (d.createdAt ?? '').toLowerCase().contains(_searchQuery) ||
+                    d.weight.toString().contains(_searchQuery);
+              }).toList();
 
               if (diamonds.isEmpty) {
                 return const EmptyState(

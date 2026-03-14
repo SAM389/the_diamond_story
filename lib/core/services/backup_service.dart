@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:csv/csv.dart';
+import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import 'encryption_service.dart';
 
@@ -14,6 +15,24 @@ class BackupService {
     'rough_stones', 'diamonds', 'process_types', 'processes',
     'parties', 'purchases', 'sales', 'payments', 'expense_categories',
   ];
+
+  static const List<String> _csvImportOrder = [
+    'expense_categories',
+    'parties',
+    'rough_stones',
+    'diamonds',
+    'process_types',
+    'processes',
+    'purchases',
+    'sales',
+    'payments',
+  ];
+
+  static const Map<String, String> _uniqueKeyByTable = {
+    'rough_stones': 'lot_no',
+    'diamonds': 'diamond_code',
+    'process_types': 'name',
+  };
 
   // ---------------------------------------------------------------------------
   // CREATE BACKUP  ->  returns encrypted bytes
@@ -159,4 +178,192 @@ class BackupService {
     final zipBytes = ZipEncoder().encode(archive)!;
     return Uint8List.fromList(zipBytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // RESTORE CSV ZIP  <-  accepts unencrypted ZIP bytes
+  // ---------------------------------------------------------------------------
+
+  /// Restores data from a CSV ZIP created by [exportToCsvZip].
+  ///
+  /// When [merge] is true, existing data is kept and incoming rows overwrite
+  /// conflicts when keys match. When false, existing rows in backup tables are
+  /// cleared first.
+  static Future<CsvRestoreResult> restoreFromCsvZipBytes(
+    Uint8List zipBytes, {
+    bool merge = true,
+  }) async {
+    final archive = ZipDecoder().decodeBytes(zipBytes);
+    final db = await DatabaseHelper.instance.database;
+    final result = CsvRestoreResult();
+
+    final tableColumns = <String, Map<String, String>>{};
+    for (final table in _csvImportOrder) {
+      final info = await db.rawQuery('PRAGMA table_info($table)');
+      tableColumns[table] = {
+        for (final col in info)
+          (col['name'] as String): ((col['type'] as String?) ?? ''),
+      };
+    }
+
+    await db.transaction((txn) async {
+      if (!merge) {
+        for (final table in _csvImportOrder.reversed) {
+          await txn.delete(table);
+        }
+      }
+
+      for (final table in _csvImportOrder) {
+        final entry = archive.findFile('$table.csv');
+        if (entry == null || !entry.isFile) continue;
+
+        final csvString = utf8.decode(entry.content as List<int>);
+        final rawRows = const CsvToListConverter().convert(csvString);
+        if (rawRows.isEmpty) continue;
+
+        final headers = rawRows.first
+            .map((e) => _normalizeHeader(e?.toString() ?? ''))
+            .where((h) => h.isNotEmpty)
+            .toList();
+        if (headers.isEmpty || rawRows.length < 2) continue;
+
+        final validColumns = tableColumns[table]!;
+        final filteredHeaders = headers.where(validColumns.containsKey).toList();
+        if (filteredHeaders.isEmpty) continue;
+
+        final stats = result._stats.putIfAbsent(table, TableImportStats.new);
+        final uniqueKey = _uniqueKeyByTable[table];
+
+        for (var i = 1; i < rawRows.length; i++) {
+          final row = rawRows[i];
+          try {
+            final values = row.cast<Object?>();
+            final record = <String, dynamic>{};
+
+            for (var j = 0; j < headers.length; j++) {
+              if (j >= values.length) continue;
+              final column = headers[j];
+              if (!validColumns.containsKey(column)) continue;
+              record[column] = _coerceValue(values[j], validColumns[column]!);
+            }
+
+            if (record.isEmpty) {
+              stats.skipped++;
+              continue;
+            }
+
+            if (!merge) {
+              await txn.insert(
+                table,
+                record,
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+              stats.inserted++;
+              continue;
+            }
+
+            final overwriteDone = await _mergeUpsertRow(
+              txn: txn,
+              table: table,
+              record: record,
+              uniqueKey: uniqueKey,
+            );
+
+            if (overwriteDone) {
+              stats.overwritten++;
+            } else {
+              stats.inserted++;
+            }
+          } catch (_) {
+            stats.skipped++;
+          }
+        }
+      }
+    });
+
+    return result;
+  }
+
+  static Future<bool> _mergeUpsertRow({
+    required Transaction txn,
+    required String table,
+    required Map<String, dynamic> record,
+    required String? uniqueKey,
+  }) async {
+    final id = record['id'];
+    if (id != null) {
+      final updateMap = Map<String, dynamic>.from(record)..remove('id');
+      final updated = await txn.update(
+        table,
+        updateMap,
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (updated > 0) return true;
+      await txn.insert(table, record, conflictAlgorithm: ConflictAlgorithm.replace);
+      return false;
+    }
+
+    if (uniqueKey != null && record.containsKey(uniqueKey) && record[uniqueKey] != null) {
+      final match = await txn.query(
+        table,
+        columns: const ['id'],
+        where: '$uniqueKey = ?',
+        whereArgs: [record[uniqueKey]],
+        limit: 1,
+      );
+      if (match.isNotEmpty) {
+        final matchedId = match.first['id'];
+        final updateMap = Map<String, dynamic>.from(record)..remove('id');
+        await txn.update(
+          table,
+          updateMap,
+          where: 'id = ?',
+          whereArgs: [matchedId],
+        );
+        return true;
+      }
+    }
+
+    await txn.insert(table, record, conflictAlgorithm: ConflictAlgorithm.replace);
+    return false;
+  }
+
+  static String _normalizeHeader(String value) {
+    return value.replaceFirst('\ufeff', '').trim();
+  }
+
+  static dynamic _coerceValue(Object? value, String sqliteType) {
+    if (value == null) return null;
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+
+    final upper = sqliteType.toUpperCase();
+    if (upper.contains('INT')) {
+      final n = num.tryParse(raw);
+      return n?.toInt();
+    }
+    if (upper.contains('REAL') || upper.contains('FLOA') || upper.contains('DOUB')) {
+      return num.tryParse(raw)?.toDouble();
+    }
+    return raw;
+  }
+}
+
+class CsvRestoreResult {
+  final Map<String, TableImportStats> _stats = {};
+
+  Map<String, TableImportStats> get stats => Map.unmodifiable(_stats);
+
+  int get inserted => _stats.values.fold(0, (sum, s) => sum + s.inserted);
+
+  int get overwritten => _stats.values.fold(0, (sum, s) => sum + s.overwritten);
+
+  int get skipped => _stats.values.fold(0, (sum, s) => sum + s.skipped);
+}
+
+class TableImportStats {
+  int inserted = 0;
+  int overwritten = 0;
+  int skipped = 0;
 }

@@ -16,6 +16,9 @@ class RoughStonePage extends StatefulWidget {
 }
 
 class _RoughStonePageState extends State<RoughStonePage> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +26,12 @@ class _RoughStonePageState extends State<RoughStonePage> {
       context.read<InventoryProvider>().loadRoughStones();
       context.read<InventoryProvider>().loadDiamonds();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   void _showAddDialog({RoughStone? existing}) {
@@ -44,10 +53,29 @@ class _RoughStonePageState extends State<RoughStonePage> {
           child: PageHeader(
             title: 'Rough Stones',
             subtitle: 'Inventory \u203a Rough Stones',
-            action: FilledButton.icon(
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Rough Stone'),
-              onPressed: () => _showAddDialog(),
+            action: Row(
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search rough stones',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add Rough Stone'),
+                  onPressed: () => _showAddDialog(),
+                ),
+              ],
             ),
           ),
         ),
@@ -61,6 +89,18 @@ class _RoughStonePageState extends State<RoughStonePage> {
                   child: TableSkeleton(rows: 6),
                 );
               }
+
+              final filteredStones = provider.roughStones.where((stone) {
+                if (_searchQuery.isEmpty) return true;
+
+                return stone.lotNo.toLowerCase().contains(_searchQuery) ||
+                    stone.title.toLowerCase().contains(_searchQuery) ||
+                    stone.quality.toLowerCase().contains(_searchQuery) ||
+                    stone.purchaseDate.toLowerCase().contains(_searchQuery) ||
+                    stone.weight.toString().contains(_searchQuery) ||
+                    stone.purchasePrice.toString().contains(_searchQuery);
+              }).toList();
+
               if (provider.roughStones.isEmpty) {
                 return EmptyState(
                   message: 'No rough stones yet.\nClick "Add Rough Stone" to get started.',
@@ -69,14 +109,22 @@ class _RoughStonePageState extends State<RoughStonePage> {
                   onCta: () => _showAddDialog(),
                 );
               }
+
+              if (filteredStones.isEmpty) {
+                return const EmptyState(
+                  message: 'No rough stones match your search.',
+                  icon: Icons.search_off_rounded,
+                );
+              }
+
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStats(provider.roughStones),
+                    _buildStats(filteredStones),
                     const SizedBox(height: 16),
-                    Expanded(child: _buildTable(provider.roughStones)),
+                    Expanded(child: _buildTable(filteredStones)),
                   ],
                 ),
               );
@@ -419,11 +467,41 @@ class _RoughStoneDialogState extends State<_RoughStoneDialog> {
     super.dispose();
   }
 
+  Future<bool> _confirmEditSave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Changes'),
+        content: const Text('Do you want to make the changes?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes, Save'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_supplierId == null) {
       setState(() => _errorMsg = 'Supplier is required.');
       return;
+    }
+
+    if (widget.existing != null) {
+      final confirmed = await _confirmEditSave();
+      if (!confirmed) return;
     }
 
     setState(() {

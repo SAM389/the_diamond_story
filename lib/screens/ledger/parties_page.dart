@@ -15,6 +15,8 @@ class PartiesPage extends StatefulWidget {
 
 class _PartiesPageState extends State<PartiesPage> {
   String _filterType = 'all';
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -22,6 +24,12 @@ class _PartiesPageState extends State<PartiesPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LedgerProvider>().loadAll();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   void _showDialog({Party? existing}) {
@@ -40,6 +48,21 @@ class _PartiesPageState extends State<PartiesPage> {
             subtitle: 'Suppliers, customers and workers',
             action: Row(
               children: [
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search parties',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 _TypeFilter(
                   value: _filterType,
                   onChanged: (v) => setState(() => _filterType = v),
@@ -64,11 +87,19 @@ class _PartiesPageState extends State<PartiesPage> {
                 );
               }
 
-              final parties = _filterType == 'all'
-                  ? provider.parties
-                  : provider.parties
-                      .where((p) => p.type == _filterType)
-                      .toList();
+                final parties = provider.parties.where((p) {
+                final matchesType =
+                  _filterType == 'all' ? true : p.type == _filterType;
+                if (!matchesType) return false;
+                if (_searchQuery.isEmpty) return true;
+
+                final name = p.name.toLowerCase();
+                final phone = (p.phone ?? '').toLowerCase();
+                final address = (p.address ?? '').toLowerCase();
+                return name.contains(_searchQuery) ||
+                  phone.contains(_searchQuery) ||
+                  address.contains(_searchQuery);
+                }).toList();
 
               if (parties.isEmpty) {
                 return const EmptyState(

@@ -16,12 +16,21 @@ class PaymentsPage extends StatefulWidget {
 }
 
 class _PaymentsPageState extends State<PaymentsPage> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LedgerProvider>().loadAll();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -34,13 +43,32 @@ class _PaymentsPageState extends State<PaymentsPage> {
           child: PageHeader(
             title: 'Payments',
             subtitle: 'Track all payments and receipts',
-            action: FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Add Payment'),
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const _PaymentDialog(),
-              ),
+            action: Row(
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search payments',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Payment'),
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => const _PaymentDialog(),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -54,6 +82,18 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 );
               }
 
+              final payments = provider.payments.where((payment) {
+                if (_searchQuery.isEmpty) return true;
+
+                return (payment.partyName ?? '').toLowerCase().contains(_searchQuery) ||
+                    payment.type.toLowerCase().contains(_searchQuery) ||
+                    (payment.category ?? '').toLowerCase().contains(_searchQuery) ||
+                    payment.date.toLowerCase().contains(_searchQuery) ||
+                    payment.status.toLowerCase().contains(_searchQuery) ||
+                    (payment.notes ?? '').toLowerCase().contains(_searchQuery) ||
+                    payment.amount.toString().contains(_searchQuery);
+              }).toList();
+
               if (provider.payments.isEmpty) {
                 return const EmptyState(
                   message: 'No payments yet.',
@@ -62,14 +102,21 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 );
               }
 
+              if (payments.isEmpty) {
+                return const EmptyState(
+                  message: 'No payments match your search.',
+                  icon: Icons.search_off_rounded,
+                );
+              }
+
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStats(provider.payments),
+                    _buildStats(payments),
                     const SizedBox(height: 16),
-                    Expanded(child: _buildTable(provider.payments)),
+                    Expanded(child: _buildTable(payments)),
                   ],
                 ),
               );

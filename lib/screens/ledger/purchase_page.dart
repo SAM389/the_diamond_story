@@ -16,6 +16,9 @@ class PurchasePage extends StatefulWidget {
 }
 
 class _PurchasePageState extends State<PurchasePage> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +26,12 @@ class _PurchasePageState extends State<PurchasePage> {
       context.read<LedgerProvider>().loadAll();
       context.read<InventoryProvider>().loadRoughStones();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -35,11 +44,30 @@ class _PurchasePageState extends State<PurchasePage> {
           child: PageHeader(
             title: 'Purchases',
             subtitle: 'Record rough stone purchases',
-            action: FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Add Purchase'),
-              onPressed: () =>
-                  showDialog(context: context, builder: (_) => const _PurchaseDialog()),
+            action: Row(
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.trim().toLowerCase()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search purchases',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Purchase'),
+                  onPressed: () =>
+                      showDialog(context: context, builder: (_) => const _PurchaseDialog()),
+                ),
+              ],
             ),
           ),
         ),
@@ -53,6 +81,24 @@ class _PurchasePageState extends State<PurchasePage> {
                 );
               }
 
+              final titleByLotNo = <String, String>{
+                for (final stone in inventoryProvider.roughStones)
+                  stone.lotNo: stone.title,
+              };
+
+              final purchases = provider.purchases.where((purchase) {
+                if (_searchQuery.isEmpty) return true;
+
+                final lotNo = purchase.lotNo ?? '';
+                final title = lotNo.isEmpty ? '' : (titleByLotNo[lotNo] ?? '');
+                return (purchase.partyName ?? '').toLowerCase().contains(_searchQuery) ||
+                    lotNo.toLowerCase().contains(_searchQuery) ||
+                    title.toLowerCase().contains(_searchQuery) ||
+                    purchase.date.toLowerCase().contains(_searchQuery) ||
+                    (purchase.notes ?? '').toLowerCase().contains(_searchQuery) ||
+                    purchase.amount.toString().contains(_searchQuery);
+              }).toList();
+
               if (provider.purchases.isEmpty) {
                 return const EmptyState(
                   message: 'No purchases yet.',
@@ -61,16 +107,23 @@ class _PurchasePageState extends State<PurchasePage> {
                 );
               }
 
+              if (purchases.isEmpty) {
+                return const EmptyState(
+                  message: 'No purchases match your search.',
+                  icon: Icons.search_off_rounded,
+                );
+              }
+
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStats(provider.purchases),
+                    _buildStats(purchases),
                     const SizedBox(height: 16),
                     Expanded(
                       child: _buildTable(
-                        provider.purchases,
+                        purchases,
                         inventoryProvider.roughStones,
                       ),
                     ),
