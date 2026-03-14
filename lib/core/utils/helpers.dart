@@ -39,8 +39,24 @@ class AppHelpers {
     return '${weight.toStringAsFixed(3)} ct';
   }
 
+  /// Format a DateTime as yyyy-MM-dd.
+  static String formatDate(DateTime date) {
+    return DateFormat('yyyy-MM-dd').format(date);
+  }
+
+  /// Parse yyyy-MM-dd text with a fallback date.
+  static DateTime parseDate(String? date, {DateTime? fallback}) {
+    final fallbackDate = fallback ?? DateTime.now();
+    if (date == null || date.isEmpty) return fallbackDate;
+    try {
+      return DateFormat('yyyy-MM-dd').parseStrict(date);
+    } catch (_) {
+      return fallbackDate;
+    }
+  }
+
   /// Today as yyyy-MM-dd string
-  static String today() => DateFormat('yyyy-MM-dd').format(DateTime.now());
+  static String today() => formatDate(DateTime.now());
 
   /// Readable date display
   static String displayDate(String? date) {

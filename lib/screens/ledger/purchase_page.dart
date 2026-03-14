@@ -469,6 +469,98 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
     super.dispose();
   }
 
+  String? _selectedSupplierName(List<dynamic> suppliers) {
+    if (_partyId == null) return null;
+    for (final supplier in suppliers) {
+      if (supplier.id == _partyId) return supplier.name as String;
+    }
+    return null;
+  }
+
+  Future<void> _openSupplierPicker(List<dynamic> suppliers) async {
+    if (suppliers.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = suppliers.where((supplier) {
+              final name = (supplier.name as String).toLowerCase();
+              return name.contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Supplier'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search supplier',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No supplier matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final supplier = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(supplier.name as String),
+                                  trailing: supplier.id == _partyId
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, supplier.id as int?),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() => _partyId = selectedId);
+  }
+
+  Future<void> _pickDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: AppHelpers.parseDate(_dateCtrl.text),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _dateCtrl.text = AppHelpers.formatDate(selected));
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate() || _partyId == null) {
       if (_partyId == null) {
@@ -505,6 +597,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
     final ledger = context.watch<LedgerProvider>();
     final inventory = context.watch<InventoryProvider>();
     final suppliers = ledger.parties.where((p) => p.type == 'supplier').toList();
+    final selectedSupplierName = _selectedSupplierName(suppliers);
 
     return AlertDialog(
       title: const Text('Add Purchase'),
@@ -515,14 +608,25 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<int>(
-                initialValue: _partyId,
-                decoration: const InputDecoration(labelText: 'Supplier *', border: OutlineInputBorder()),
-                items: suppliers.isEmpty
-                    ? const [DropdownMenuItem(value: -1, child: Text('No suppliers found'))]
-                    : suppliers.map((p) => DropdownMenuItem(value: p.id, child: Text(p.name))).toList(),
-                onChanged: suppliers.isEmpty ? null : (v) => setState(() => _partyId = v),
-                validator: (v) => v == null ? 'Required' : null,
+              InkWell(
+                onTap: suppliers.isEmpty ? null : () => _openSupplierPicker(suppliers),
+                borderRadius: BorderRadius.circular(4),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Supplier *',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.search),
+                  ),
+                  child: Text(
+                    selectedSupplierName ??
+                        (suppliers.isEmpty ? 'No suppliers found' : 'Search and select supplier'),
+                    style: TextStyle(
+                      color: selectedSupplierName == null
+                          ? AppTheme.textSecondary
+                          : AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
@@ -544,7 +648,9 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _dateCtrl,
-                decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder()),
+                readOnly: true,
+                onTap: _pickDate,
+                decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today_outlined)),
                 validator: (v) => (v == null || v.isEmpty) ? 'Date is required' : null,
               ),
               const SizedBox(height: 12),

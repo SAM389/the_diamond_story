@@ -528,6 +528,99 @@ class _PaymentDialogState extends State<_PaymentDialog> {
     setState(() => _partyId = selectedId);
   }
 
+  Future<void> _openCategoryPicker(List<dynamic> categories) async {
+    final selectedValue = await showDialog<String?>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = categories.where((category) {
+              return (category.name as String)
+                  .toLowerCase()
+                  .contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Category'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search category',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: filtered.length + 1,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          if (index == 0) {
+                            return ListTile(
+                              dense: true,
+                              title: const Text('No category'),
+                              trailing: _category == null
+                                  ? const Icon(Icons.check, size: 18)
+                                  : null,
+                              onTap: () => Navigator.pop(context, null),
+                            );
+                          }
+
+                          final category = filtered[index - 1];
+                          final name = category.name as String;
+                          return ListTile(
+                            dense: true,
+                            title: Text(name),
+                            trailing: name == _category
+                                ? const Icon(Icons.check, size: 18)
+                                : null,
+                            onTap: () => Navigator.pop(context, name),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted) return;
+    setState(() => _category = selectedValue);
+  }
+
+  Future<void> _pickDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: AppHelpers.parseDate(_dateCtrl.text),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _dateCtrl.text = AppHelpers.formatDate(selected));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -631,19 +724,34 @@ class _PaymentDialogState extends State<_PaymentDialog> {
                   onChanged: (v) => setState(() => _type = v!),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  initialValue: _category,
-                  decoration: const InputDecoration(labelText: 'Category (optional)', border: OutlineInputBorder()),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('� None �')),
-                    ...ledger.expenseCategories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))),
-                  ],
-                  onChanged: (v) => setState(() => _category = v),
+                InkWell(
+                  onTap: () => _openCategoryPicker(ledger.expenseCategories),
+                  borderRadius: BorderRadius.circular(4),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Category (optional)',
+                      border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.search),
+                    ),
+                    child: Text(
+                      _category ??
+                          (ledger.expenseCategories.isEmpty
+                              ? 'No categories found'
+                              : 'Search and select category'),
+                      style: TextStyle(
+                        color: _category == null
+                            ? AppTheme.textSecondary
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _dateCtrl,
-                  decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder()),
+                  readOnly: true,
+                  onTap: _pickDate,
+                  decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today_outlined)),
                   validator: (v) => (v == null || v.isEmpty) ? 'Date is required' : null,
                 ),
                 const SizedBox(height: 12),

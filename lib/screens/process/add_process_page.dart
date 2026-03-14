@@ -25,6 +25,7 @@ class _AddProcessPageState extends State<AddProcessPage> {
   int? _selectedWorkerId;
   final _feeCtrl = TextEditingController();
   final _fromCtrl = TextEditingController();
+  final _toCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   bool _saving = false;
   String? _error;
@@ -34,6 +35,257 @@ class _AddProcessPageState extends State<AddProcessPage> {
       if (pt.id == _selectedProcessTypeId) return pt.cost;
     }
     return 0;
+  }
+
+  String? _selectedDiamondLabel(List availableDiamonds) {
+    if (_selectedDiamondId == null) return null;
+    for (final diamond in availableDiamonds) {
+      if (diamond.id == _selectedDiamondId) {
+        return '${diamond.diamondCode} (${diamond.weight} ct)';
+      }
+    }
+    return null;
+  }
+
+  String? _selectedProcessTypeLabel(ProcessProvider provider) {
+    if (_selectedProcessTypeId == null) return null;
+    for (final processType in provider.processTypes) {
+      if (processType.id == _selectedProcessTypeId) return processType.name;
+    }
+    return null;
+  }
+
+  String? _selectedWorkerLabel(List workers) {
+    final selectedWorkerId = _resolvedWorkerId(workers);
+    if (selectedWorkerId == null) return null;
+    for (final worker in workers) {
+      if (worker.id == selectedWorkerId) return worker.name as String;
+    }
+    return widget.existing?.partyName;
+  }
+
+  Future<void> _openDiamondPicker(List availableDiamonds) async {
+    if (availableDiamonds.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = availableDiamonds.where((diamond) {
+              final label = '${diamond.diamondCode} (${diamond.weight} ct)'.toLowerCase();
+              return label.contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Diamond'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search diamond',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No diamond matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final diamond = filtered[index];
+                                final label = '${diamond.diamondCode} (${diamond.weight} ct)';
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(label),
+                                  trailing: diamond.id == _selectedDiamondId
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, diamond.id as int?),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() => _selectedDiamondId = selectedId);
+  }
+
+  Future<void> _openProcessTypePicker(ProcessProvider procProvider) async {
+    if (procProvider.processTypes.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = procProvider.processTypes.where((processType) {
+              return processType.name.toLowerCase().contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Process Type'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search process type',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No process type matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final processType = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(processType.name),
+                                  trailing: processType.id == _selectedProcessTypeId
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, processType.id),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() {
+      _selectedProcessTypeId = selectedId;
+      final fee = _selectedProcessFee(procProvider);
+      _feeCtrl.text = fee == 0
+          ? ''
+          : fee.toStringAsFixed(fee == fee.roundToDouble() ? 0 : 2);
+    });
+  }
+
+  Future<void> _openWorkerPicker(List workers) async {
+    if (workers.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = workers.where((worker) {
+              return (worker.name as String).toLowerCase().contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Worker'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search worker',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No worker matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final worker = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(worker.name as String),
+                                  trailing: worker.id == _resolvedWorkerId(workers)
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, worker.id as int?),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() => _selectedWorkerId = selectedId);
   }
 
   int? _resolvedWorkerId(List workers) {
@@ -49,6 +301,32 @@ class _AddProcessPageState extends State<AddProcessPage> {
     return null;
   }
 
+  Future<void> _pickFromDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: AppHelpers.parseDate(_fromCtrl.text),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _fromCtrl.text = AppHelpers.formatDate(selected));
+  }
+
+  Future<void> _pickToDate() async {
+    final fromDate = AppHelpers.parseDate(_fromCtrl.text);
+    final initialDate = _toCtrl.text.isEmpty
+        ? fromDate
+        : AppHelpers.parseDate(_toCtrl.text, fallback: fromDate);
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _toCtrl.text = AppHelpers.formatDate(selected));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +339,7 @@ class _AddProcessPageState extends State<AddProcessPage> {
             : existing.fee.toStringAsFixed(2))
         : '';
     _fromCtrl.text = existing?.fromDate ?? AppHelpers.today();
+    _toCtrl.text = (existing?.status != 'completed' ? existing?.toDate : null) ?? '';
     _notesCtrl.text = existing?.notes ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<InventoryProvider>().loadDiamonds();
@@ -73,12 +352,21 @@ class _AddProcessPageState extends State<AddProcessPage> {
   void dispose() {
     _feeCtrl.dispose();
     _fromCtrl.dispose();
+    _toCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_toCtrl.text.trim().isNotEmpty) {
+      final from = AppHelpers.parseDate(_fromCtrl.text.trim());
+      final to = AppHelpers.parseDate(_toCtrl.text.trim());
+      if (to.isBefore(from)) {
+        setState(() => _error = 'To date cannot be before from date.');
+        return;
+      }
+    }
     if (_selectedDiamondId == null || _selectedProcessTypeId == null) {
       setState(() => _error = 'Select a diamond and process type.');
       return;
@@ -115,7 +403,7 @@ class _AddProcessPageState extends State<AddProcessPage> {
         fee: double.tryParse(_feeCtrl.text.trim()) ?? 0,
         partyName: selectedWorker.name,
         fromDate: _fromCtrl.text.trim(),
-        toDate: widget.existing?.toDate,
+        toDate: _toCtrl.text.trim().isEmpty ? null : _toCtrl.text.trim(),
         status: widget.existing?.status ?? 'pending',
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         createdAt: widget.existing?.createdAt ?? DateTime.now().toIso8601String(),
@@ -163,17 +451,9 @@ class _AddProcessPageState extends State<AddProcessPage> {
             final workers = ledgerProvider.parties
                 .where((party) => party.type == 'worker')
                 .toList();
-            final selectedDiamondValue = availableDiamonds.any(
-              (d) => d.id == _selectedDiamondId,
-            )
-                ? _selectedDiamondId
-                : null;
-            final selectedProcessTypeValue = procProvider.processTypes.any(
-              (pt) => pt.id == _selectedProcessTypeId,
-            )
-                ? _selectedProcessTypeId
-                : null;
-            final selectedWorkerValue = _resolvedWorkerId(workers);
+            final selectedDiamondLabel = _selectedDiamondLabel(availableDiamonds);
+            final selectedProcessTypeLabel = _selectedProcessTypeLabel(procProvider);
+            final selectedWorkerLabel = _selectedWorkerLabel(workers);
 
             return Center(
               child: ConstrainedBox(
@@ -198,26 +478,27 @@ class _AddProcessPageState extends State<AddProcessPage> {
                           children: [
                             const Text('Diamond', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
                             const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<int>(
-                                value: selectedDiamondValue,
-                                isExpanded: true,
-                                underline: const SizedBox(),
-                                hint: const Text('Select a diamond'),
-                                items: availableDiamonds.isEmpty
-                                    ? const [DropdownMenuItem(value: -1, child: Text('No available diamonds'))]
-                                    : availableDiamonds.map((d) => DropdownMenuItem(
-                                          value: d.id,
-                                          child: Text('${d.diamondCode} (${d.weight} ct)'),
-                                        )).toList(),
-                                onChanged: availableDiamonds.isEmpty
-                                    ? null
-                                    : (v) => setState(() => _selectedDiamondId = v),
+                            InkWell(
+                              onTap: availableDiamonds.isEmpty
+                                  ? null
+                                  : () => _openDiamondPicker(availableDiamonds),
+                              borderRadius: BorderRadius.circular(8),
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  suffixIcon: Icon(Icons.search),
+                                ),
+                                child: Text(
+                                  selectedDiamondLabel ??
+                                      (availableDiamonds.isEmpty
+                                          ? 'No available diamonds'
+                                          : 'Search and select diamond'),
+                                  style: TextStyle(
+                                    color: selectedDiamondLabel == null
+                                        ? AppTheme.textSecondary
+                                        : AppTheme.textPrimary,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -228,36 +509,27 @@ class _AddProcessPageState extends State<AddProcessPage> {
                           children: [
                             const Text('Process Type *', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
                             const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<int>(
-                                value: selectedProcessTypeValue,
-                                isExpanded: true,
-                                underline: const SizedBox(),
-                                hint: const Text('Select a process type'),
-                                items: procProvider.processTypes.isEmpty
-                                    ? const [DropdownMenuItem(value: -1, child: Text('No process types'))]
-                                    : procProvider.processTypes.map((pt) => DropdownMenuItem(
-                                          value: pt.id,
-                                          child: Text(pt.name),
-                                        )).toList(),
-                                onChanged: procProvider.processTypes.isEmpty
-                                    ? null
-                                    : (v) {
-                                        setState(() {
-                                          _selectedProcessTypeId = v;
-                                          final fee = _selectedProcessFee(procProvider);
-                                          _feeCtrl.text = fee == 0
-                                              ? ''
-                                              : fee.toStringAsFixed(
-                                                  fee == fee.roundToDouble() ? 0 : 2,
-                                                );
-                                        });
-                                      },
+                            InkWell(
+                              onTap: procProvider.processTypes.isEmpty
+                                  ? null
+                                  : () => _openProcessTypePicker(procProvider),
+                              borderRadius: BorderRadius.circular(8),
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  suffixIcon: Icon(Icons.search),
+                                ),
+                                child: Text(
+                                  selectedProcessTypeLabel ??
+                                      (procProvider.processTypes.isEmpty
+                                          ? 'No process types'
+                                          : 'Search and select process type'),
+                                  style: TextStyle(
+                                    color: selectedProcessTypeLabel == null
+                                        ? AppTheme.textSecondary
+                                        : AppTheme.textPrimary,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -288,40 +560,29 @@ class _AddProcessPageState extends State<AddProcessPage> {
                         AppFormField(
                           label: 'Worker',
                           required: true,
-                          child: DropdownButtonFormField<int>(
-                            initialValue: selectedWorkerValue,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          child: InkWell(
+                            onTap: workers.isEmpty ? null : () => _openWorkerPicker(workers),
+                            borderRadius: BorderRadius.circular(8),
+                            child: InputDecorator(
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                suffixIcon: const Icon(Icons.search),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              child: Text(
+                                selectedWorkerLabel ??
+                                    (workers.isEmpty
+                                        ? 'No workers found in parties'
+                                        : 'Search and select worker'),
+                                style: TextStyle(
+                                  color: selectedWorkerLabel == null
+                                      ? AppTheme.textSecondary
+                                      : AppTheme.textPrimary,
+                                ),
+                              ),
                             ),
-                            hint: const Text('Select a worker'),
-                            items: workers.isEmpty
-                                ? const [
-                                    DropdownMenuItem(
-                                      value: -1,
-                                      child: Text('No workers found in parties'),
-                                    ),
-                                  ]
-                                : workers
-                                    .map(
-                                      (worker) => DropdownMenuItem<int>(
-                                        value: worker.id,
-                                        child: Text(worker.name),
-                                      ),
-                                    )
-                                    .toList(),
-                            onChanged: workers.isEmpty
-                                ? null
-                                : (value) => setState(() => _selectedWorkerId = value),
-                            validator: (_) {
-                              if (workers.isEmpty) return 'Add a worker in Parties first';
-                              if (_resolvedWorkerId(workers) == null) {
-                                return 'Worker is required';
-                              }
-                              return null;
-                            },
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -330,13 +591,33 @@ class _AddProcessPageState extends State<AddProcessPage> {
                           required: true,
                           child: TextFormField(
                             controller: _fromCtrl,
+                            readOnly: true,
+                            onTap: _pickFromDate,
                             decoration: InputDecoration(
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
+                              suffixIcon: const Icon(Icons.calendar_today_outlined),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             ),
                             validator: (v) => (v == null || v.isEmpty) ? 'From date is required' : null,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'To Date / Deadline (Optional)',
+                          child: TextFormField(
+                            controller: _toCtrl,
+                            readOnly: true,
+                            onTap: _pickToDate,
+                            decoration: InputDecoration(
+                              hintText: 'Select expected completion date',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              suffixIcon: const Icon(Icons.calendar_today_outlined),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),

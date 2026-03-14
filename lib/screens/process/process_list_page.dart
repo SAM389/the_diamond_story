@@ -55,11 +55,24 @@ class _ProcessListPageState extends State<ProcessListPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: dateCtrl,
+                readOnly: true,
+                onTap: () async {
+                  final selected = await showDatePicker(
+                    context: ctx,
+                    initialDate: AppHelpers.parseDate(dateCtrl.text),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (selected != null) {
+                    dateCtrl.text = AppHelpers.formatDate(selected);
+                  }
+                },
                 decoration: InputDecoration(
                   labelText: 'Completion Date (yyyy-MM-dd)',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  suffixIcon: const Icon(Icons.calendar_today_outlined),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),

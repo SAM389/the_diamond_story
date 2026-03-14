@@ -30,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Process> _recentActivity = [];
   List<Payment> _pendingPayments = [];
   List<Payment> _recentPayments = [];
+  List<Process> _overdueProcesses = [];
   bool _loading = true;
   String? _errorMessage;
   DateTime? _lastUpdated;
@@ -60,6 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         process.getRecentActivity(10),       // 5
         ledger.getPendingPayments(),         // 6
         ledger.getRecentPayments(5),         // 7
+        process.getOverdueProcesses(),       // 8
       ]);
 
       if (!mounted) return;
@@ -80,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _recentActivity = List<Process>.from(results[5] as List);
         _pendingPayments = List<Payment>.from(results[6] as List);
         _recentPayments = List<Payment>.from(results[7] as List);
+        _overdueProcesses = List<Process>.from(results[8] as List);
         _inProcessDiamonds = invStats['inProcessDiamonds'] as int? ?? 0;
         _soldDiamonds = invStats['soldDiamonds'] as int? ?? 0;
         _salesCount = (safeLedger['salesCount'] ?? 0).toInt();
@@ -143,6 +146,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_overdueProcesses.isNotEmpty) ...[          const SizedBox(height: 24),
+          _OverdueProcessesPanel(overdueProcesses: _overdueProcesses),
+        ],
         // Section 1 - KPI strip
         const SizedBox(height: 24),
         _KpiRow(children: [
@@ -862,6 +868,132 @@ class _RecentActivityTable extends StatelessWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+// ============================================================================
+// OVERDUE PROCESSES PANEL
+// ============================================================================
+
+class _OverdueProcessesPanel extends StatelessWidget {
+  final List<Process> overdueProcesses;
+  const _OverdueProcessesPanel({required this.overdueProcesses});
+
+  @override
+  Widget build(BuildContext context) {
+    return _DashboardPanel(
+      title: 'OVERDUE PROCESSES',
+      icon: Icons.warning_amber_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.danger.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.danger.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.timelapse_outlined, size: 16, color: AppTheme.danger),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${overdueProcesses.length} process${overdueProcesses.length == 1 ? '' : 'es'} past deadline — action required',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.danger,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...overdueProcesses.map((p) => _OverdueProcessRow(process: p)),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverdueProcessRow extends StatelessWidget {
+  final Process process;
+  const _OverdueProcessRow({required this.process});
+
+  @override
+  Widget build(BuildContext context) {
+    final toDate = process.toDate;
+    int daysOverdue = 0;
+    if (toDate != null && toDate.isNotEmpty) {
+      try {
+        final deadline = DateTime.parse(toDate);
+        daysOverdue = DateTime.now().difference(deadline).inDays;
+      } catch (_) {}
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  process.diamondCode ?? '-',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  process.processTypeName ?? '-',
+                  style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  process.partyName.isEmpty ? '-' : process.partyName,
+                  style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Due: ${AppHelpers.displayDate(toDate)}',
+                  style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.danger.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.danger.withValues(alpha: 0.25)),
+            ),
+            child: Text(
+              '$daysOverdue day${daysOverdue == 1 ? '' : 's'} overdue',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

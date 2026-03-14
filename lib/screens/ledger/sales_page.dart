@@ -451,6 +451,98 @@ class _SaleDialogState extends State<_SaleDialog> {
     super.dispose();
   }
 
+  String? _selectedCustomerName(List<dynamic> customers) {
+    if (_partyId == null) return null;
+    for (final customer in customers) {
+      if (customer.id == _partyId) return customer.name as String;
+    }
+    return null;
+  }
+
+  Future<void> _openCustomerPicker(List<dynamic> customers) async {
+    if (customers.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = customers.where((customer) {
+              final name = (customer.name as String).toLowerCase();
+              return name.contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Customer'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search customer',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No customer matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final customer = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(customer.name as String),
+                                  trailing: customer.id == _partyId
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, customer.id as int?),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() => _partyId = selectedId);
+  }
+
+  Future<void> _pickDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: AppHelpers.parseDate(_dateCtrl.text),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _dateCtrl.text = AppHelpers.formatDate(selected));
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate() || _partyId == null) {
       if (_partyId == null) {
@@ -493,6 +585,7 @@ class _SaleDialogState extends State<_SaleDialog> {
     final inventory = context.read<InventoryProvider>();
     final customers = ledger.parties.where((p) => p.type == 'customer').toList();
     final completedDiamonds = inventory.diamonds.where((d) => d.status == 'completed').toList();
+    final selectedCustomerName = _selectedCustomerName(customers);
 
     return AlertDialog(
       title: const Text('Add Sale'),
@@ -503,14 +596,25 @@ class _SaleDialogState extends State<_SaleDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<int>(
-                initialValue: _partyId,
-                decoration: const InputDecoration(labelText: 'Customer *', border: OutlineInputBorder()),
-                items: customers.isEmpty
-                    ? const [DropdownMenuItem(value: -1, child: Text('No customers found'))]
-                    : customers.map((p) => DropdownMenuItem(value: p.id, child: Text(p.name))).toList(),
-                onChanged: customers.isEmpty ? null : (v) => setState(() => _partyId = v),
-                validator: (v) => v == null ? 'Required' : null,
+              InkWell(
+                onTap: customers.isEmpty ? null : () => _openCustomerPicker(customers),
+                borderRadius: BorderRadius.circular(4),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Customer *',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.search),
+                  ),
+                  child: Text(
+                    selectedCustomerName ??
+                        (customers.isEmpty ? 'No customers found' : 'Search and select customer'),
+                    style: TextStyle(
+                      color: selectedCustomerName == null
+                          ? AppTheme.textSecondary
+                          : AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
@@ -532,7 +636,9 @@ class _SaleDialogState extends State<_SaleDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _dateCtrl,
-                decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder()),
+                readOnly: true,
+                onTap: _pickDate,
+                decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today_outlined)),
                 validator: (v) => (v == null || v.isEmpty) ? 'Date is required' : null,
               ),
               const SizedBox(height: 12),

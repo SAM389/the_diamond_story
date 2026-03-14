@@ -458,6 +458,93 @@ class _PartyDialogState extends State<_PartyDialog> {
     super.dispose();
   }
 
+  String _typeLabel(String type) {
+    switch (type) {
+      case 'customer':
+        return 'Customer';
+      case 'worker':
+        return 'Worker';
+      default:
+        return 'Supplier';
+    }
+  }
+
+  Future<void> _openTypePicker() async {
+    const typeOptions = [
+      ('supplier', 'Supplier'),
+      ('customer', 'Customer'),
+      ('worker', 'Worker'),
+    ];
+
+    final selectedType = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = typeOptions.where((option) {
+              return option.$2.toLowerCase().contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Type'),
+              content: SizedBox(
+                width: 380,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search type',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No type matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final option = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(option.$2),
+                                  trailing: option.$1 == _type
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, option.$1),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedType == null) return;
+    setState(() => _type = selectedType);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -519,15 +606,15 @@ class _PartyDialogState extends State<_PartyDialog> {
                 AppFormField(
                   label: 'Type',
                   required: true,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _type,
-                    decoration: const InputDecoration(),
-                    items: const [
-                      DropdownMenuItem(value: 'supplier', child: Text('Supplier')),
-                      DropdownMenuItem(value: 'customer', child: Text('Customer')),
-                      DropdownMenuItem(value: 'worker', child: Text('Worker')),
-                    ],
-                    onChanged: (v) => setState(() => _type = v!),
+                  child: InkWell(
+                    onTap: _openTypePicker,
+                    borderRadius: BorderRadius.circular(4),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        suffixIcon: Icon(Icons.search),
+                      ),
+                      child: Text(_typeLabel(_type)),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

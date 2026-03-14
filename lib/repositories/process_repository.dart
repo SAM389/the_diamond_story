@@ -204,6 +204,20 @@ class ProcessRepository {
     return maps.map(Process.fromMap).toList();
   }
 
+  Future<List<Process>> getOverdue() async {
+    final db = await _db.database;
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    final maps = await db.rawQuery('''
+      SELECT p.*, d.diamond_code, pt.name as process_type_name, pt.cost as process_type_cost
+      FROM processes p
+      LEFT JOIN diamonds d ON d.id = p.diamond_id
+      LEFT JOIN process_types pt ON pt.id = p.process_type_id
+      WHERE p.status = 'pending' AND p.to_date IS NOT NULL AND p.to_date < ?
+      ORDER BY p.to_date ASC
+    ''', [todayStr]);
+    return maps.map(Process.fromMap).toList();
+  }
+
   Future<void> _refreshDiamondStatus(int diamondId) async {
     final db = await _db.database;
     final pending = await db.query(

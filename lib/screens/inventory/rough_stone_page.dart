@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/helpers.dart';
 import '../../core/utils/app_theme.dart';
+import '../../models/party.dart';
 import '../../models/rough_stone.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/ledger_provider.dart';
@@ -492,6 +493,97 @@ class _RoughStoneDialogState extends State<_RoughStoneDialog> {
     return confirmed ?? false;
   }
 
+  String? _selectedSupplierName(List<Party> suppliers) {
+    if (_supplierId == null) return null;
+    for (final supplier in suppliers) {
+      if (supplier.id == _supplierId) return supplier.name;
+    }
+    return 'Unknown supplier (#$_supplierId)';
+  }
+
+  Future<void> _openSupplierPicker(List<Party> suppliers) async {
+    if (suppliers.isEmpty) return;
+
+    final selectedId = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final searchCtrl = TextEditingController();
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = suppliers.where((supplier) {
+              return supplier.name.toLowerCase().contains(query.trim().toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Supplier'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Search supplier',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No supplier matches your search.'))
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final supplier = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(supplier.name),
+                                  trailing: supplier.id == _supplierId
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                  onTap: () => Navigator.pop(context, supplier.id),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedId == null) return;
+    setState(() => _supplierId = selectedId);
+  }
+
+  Future<void> _pickPurchaseDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: AppHelpers.parseDate(_date.text),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _date.text = AppHelpers.formatDate(selected));
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_supplierId == null) {
@@ -547,20 +639,7 @@ class _RoughStoneDialogState extends State<_RoughStoneDialog> {
         .parties
         .where((p) => p.type == 'supplier')
         .toList();
-    final supplierItems = suppliers
-        .where((p) => p.id != null)
-        .map((p) => DropdownMenuItem<int>(value: p.id!, child: Text(p.name)))
-        .toList();
-
-    if (_supplierId != null && !supplierItems.any((item) => item.value == _supplierId)) {
-      supplierItems.insert(
-        0,
-        DropdownMenuItem<int>(
-          value: _supplierId,
-          child: Text('Unknown supplier (#$_supplierId)'),
-        ),
-      );
-    }
+    final selectedSupplierName = _selectedSupplierName(suppliers);
 
     return Dialog(
       child: ConstrainedBox(
@@ -592,23 +671,32 @@ class _RoughStoneDialogState extends State<_RoughStoneDialog> {
                   Row(children: [
                     Expanded(child: AppFormField(label: 'Purchase Price (\u20b9)', required: true, child: TextFormField(controller: _price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(hintText: '0.00'), validator: (v) => v!.isEmpty ? 'Required' : null))),
                     const SizedBox(width: 16),
-                    Expanded(child: AppFormField(label: 'Purchase Date', required: true, child: TextFormField(controller: _date, decoration: const InputDecoration(hintText: 'yyyy-MM-dd'), validator: (v) => v!.isEmpty ? 'Required' : null))),
+                    Expanded(child: AppFormField(label: 'Purchase Date', required: true, child: TextFormField(controller: _date, readOnly: true, onTap: _pickPurchaseDate, decoration: const InputDecoration(hintText: 'yyyy-MM-dd', suffixIcon: Icon(Icons.calendar_today_outlined)), validator: (v) => v!.isEmpty ? 'Required' : null))),
                   ]),
                   const SizedBox(height: 16),
                   AppFormField(
                     label: 'Supplier',
                     required: true,
-                    child: DropdownButtonFormField<int>(
-                      initialValue: _supplierId,
-                      decoration: InputDecoration(
-                        hintText: supplierItems.isEmpty ? 'No suppliers available' : 'Select supplier',
+                    child: InkWell(
+                      onTap: suppliers.isEmpty ? null : () => _openSupplierPicker(suppliers),
+                      borderRadius: BorderRadius.circular(4),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          suffixIcon: Icon(Icons.search),
+                        ),
+                        child: Text(
+                          selectedSupplierName ??
+                              (suppliers.isEmpty ? 'No suppliers available' : 'Search and select supplier'),
+                          style: TextStyle(
+                            color: selectedSupplierName == null
+                                ? AppTheme.textSecondary
+                                : AppTheme.textPrimary,
+                          ),
+                        ),
                       ),
-                      items: supplierItems,
-                      onChanged: supplierItems.isEmpty ? null : (value) => setState(() => _supplierId = value),
-                      validator: (value) => value == null ? 'Required' : null,
                     ),
                   ),
-                  if (supplierItems.isEmpty) ...[
+                  if (suppliers.isEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Add a supplier first in Ledger > Parties.',
