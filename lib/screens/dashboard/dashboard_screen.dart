@@ -12,7 +12,6 @@ import '../../widgets/data_table_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
-
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -21,16 +20,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _inventoryStats = {};
   Map<String, double> _ledgerStats = {};
   int _pendingProcesses = 0;
-  int _completedProcesses = 0;
-  int _inProcessDiamonds = 0;
-  int _soldDiamonds = 0;
-  int _salesCount = 0;
-  double _pendingPaymentTotal = 0;
   List<Map<String, dynamic>> _stageBreakdown = [];
   List<Process> _recentActivity = [];
-  List<Payment> _pendingPayments = [];
   List<Payment> _recentPayments = [];
   List<Process> _overdueProcesses = [];
+  double _pendingPaymentTotal = 0;
   bool _loading = true;
   String? _errorMessage;
   DateTime? _lastUpdated;
@@ -46,47 +40,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _loading = true;
       _errorMessage = null;
     });
-
     final inv = context.read<InventoryProvider>();
     final ledger = context.read<LedgerProvider>();
     final process = context.read<ProcessProvider>();
-
     try {
       final results = await Future.wait([
-        inv.getDashboardStats(),            // 0
-        ledger.getDashboardStats(),          // 1
-        process.getPendingCount(),           // 2
-        process.getCompletedCount(),         // 3
-        process.getStageBreakdown(),         // 4
-        process.getRecentActivity(10),       // 5
-        ledger.getPendingPayments(),         // 6
-        ledger.getRecentPayments(5),         // 7
-        process.getOverdueProcesses(),       // 8
+        inv.getDashboardStats(),
+        ledger.getDashboardStats(),
+        process.getPendingCount(),
+        process.getStageBreakdown(),
+        process.getRecentActivity(10),
+        ledger.getRecentPayments(10),
+        process.getOverdueProcesses(),
+        ledger.getPendingPayments(),
       ]);
-
       if (!mounted) return;
-
-      final invStats = results[0] as Map<String, dynamic>;
       final rawLedger = results[1] as Map<dynamic, dynamic>;
       final safeLedger = <String, double>{
         for (final entry in rawLedger.entries)
           entry.key.toString(): (entry.value as num?)?.toDouble() ?? 0.0,
       };
+      
+      double pendingTotal = 0;
+      final pendingList = results[7] as List<Payment>;
+      for (var p in pendingList) pendingTotal += p.amount;
 
       setState(() {
-        _inventoryStats = invStats;
+        _inventoryStats = results[0] as Map<String, dynamic>;
         _ledgerStats = safeLedger;
         _pendingProcesses = results[2] as int;
-        _completedProcesses = results[3] as int;
-        _stageBreakdown = List<Map<String, dynamic>>.from(results[4] as List);
-        _recentActivity = List<Process>.from(results[5] as List);
-        _pendingPayments = List<Payment>.from(results[6] as List);
-        _recentPayments = List<Payment>.from(results[7] as List);
-        _overdueProcesses = List<Process>.from(results[8] as List);
-        _inProcessDiamonds = invStats['inProcessDiamonds'] as int? ?? 0;
-        _soldDiamonds = invStats['soldDiamonds'] as int? ?? 0;
-        _salesCount = (safeLedger['salesCount'] ?? 0).toInt();
-        _pendingPaymentTotal = safeLedger['pendingPaymentTotal'] ?? 0;
+        _stageBreakdown = List<Map<String, dynamic>>.from(results[3] as List);
+        _recentActivity = List<Process>.from(results[4] as List);
+        _recentPayments = List<Payment>.from(results[5] as List);
+        _overdueProcesses = List<Process>.from(results[6] as List);
+        _pendingPaymentTotal = pendingTotal;
         _lastUpdated = DateTime.now();
         _loading = false;
       });
@@ -101,953 +88,328 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final statusText = _lastUpdated == null
-        ? 'Awaiting first refresh'
-        : 'Updated ${_formatRelativeTime(_lastUpdated!)}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
-          child: PageHeader(
-            title: 'Dashboard',
-            subtitle: 'Executive overview of inventory, finance, and operations',
-            statusText: _errorMessage == null ? statusText : 'Sync failed',
-            statusIcon:
-                _errorMessage == null ? Icons.verified_outlined : Icons.warning_amber_rounded,
-            statusColor: _errorMessage == null ? AppTheme.textSecondary : AppTheme.danger,
-            action: OutlinedButton.icon(
-              icon: const Icon(Icons.refresh_rounded, size: 17),
-              label: const Text('Refresh'),
-              onPressed: _loadStats,
-            ),
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
-            child: _buildBody(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return _buildSkeleton();
-    if (_errorMessage != null) return _buildErrorState();
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_errorMessage != null) return Scaffold(body: Center(child: Text(_errorMessage!)));
 
     final roughCount = (_inventoryStats['roughCount'] ?? 0) as int;
     final diamondCount = (_inventoryStats['diamondCount'] ?? 0) as int;
     final roughWeight = (_inventoryStats['roughWeight'] as double? ?? 0.0);
     final diamondWeight = (_inventoryStats['diamondWeight'] as double? ?? 0.0);
-    final revenue = _ledgerStats['totalRevenue'] ?? 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_overdueProcesses.isNotEmpty) ...[          const SizedBox(height: 24),
-          _OverdueProcessesPanel(overdueProcesses: _overdueProcesses),
-        ],
-        // Section 1 - KPI strip
-        const SizedBox(height: 24),
-        _KpiRow(children: [
-          _KpiCard(
-            title: 'Rough Stones',
-            value: '$roughCount',
-            subtitle: '${roughWeight.toStringAsFixed(2)} ct available',
-            icon: Icons.circle_outlined,
-            color: AppTheme.kpiInventory,
-          ),
-          _KpiCard(
-            title: 'Diamonds Created',
-            value: '$diamondCount',
-            subtitle: '${diamondWeight.toStringAsFixed(2)} ct total',
-            icon: Icons.diamond_outlined,
-            color: AppTheme.kpiDiamond,
-          ),
-          _KpiCard(
-            title: 'In Process',
-            value: '$_inProcessDiamonds',
-            subtitle: '$_pendingProcesses active work order${_pendingProcesses == 1 ? '' : 's'}',
-            icon: Icons.precision_manufacturing_rounded,
-            color: AppTheme.kpiProcess,
-          ),
-          _KpiCard(
-            title: 'Completed',
-            value: '$_completedProcesses',
-            subtitle: '$_soldDiamonds diamonds sold',
-            icon: Icons.task_alt_rounded,
-            color: AppTheme.success,
-          ),
-          _KpiCard(
-            title: 'Pending Payments',
-            value: AppHelpers.formatCurrency(_pendingPaymentTotal),
-            subtitle: '${_pendingPayments.length} payment${_pendingPayments.length == 1 ? '' : 's'} outstanding',
-            icon: Icons.account_balance_wallet_outlined,
-            color: AppTheme.danger,
-          ),
-          _KpiCard(
-            title: 'Total Sales',
-            value: '$_salesCount',
-            subtitle: '${AppHelpers.formatCurrency(revenue)} revenue',
-            icon: Icons.sell_outlined,
-            color: AppTheme.kpiRevenue,
-          ),
-        ]),
-        const SizedBox(height: 24),
-        // Section 2 - Pipeline and payments
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final narrow = constraints.maxWidth < 860;
-            if (narrow) {
-              return Column(
-                children: [
-                  _ProcessPipelineSection(stageBreakdown: _stageBreakdown),
-                  const SizedBox(height: 16),
-                  _PaymentAlertPanel(
-                    pendingTotal: _pendingPaymentTotal,
-                    pendingPayments: _pendingPayments,
-                    recentPayments: _recentPayments,
-                  ),
-                ],
-              );
-            }
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 6,
-                    child: _ProcessPipelineSection(stageBreakdown: _stageBreakdown),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 4,
-                    child: _PaymentAlertPanel(
-                      pendingTotal: _pendingPaymentTotal,
-                      pendingPayments: _pendingPayments,
-                      recentPayments: _recentPayments,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        // Section 3 - Recent activity
-        _RecentActivityTable(processes: _recentActivity),
-      ],
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Container(
-      margin: const EdgeInsets.only(top: 24),
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppTheme.cardColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.divider),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.danger.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.error_outline_rounded, color: AppTheme.danger, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _errorMessage ?? 'Unable to load dashboard data.',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Check your data connection and refresh again.',
-            style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _loadStats,
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Retry Sync'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSkeleton() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 24),
-        Row(
-          children: List.generate(6, (i) => Expanded(
-            child: Container(
-              margin: EdgeInsets.only(right: i < 5 ? 12 : 0),
-              height: 90,
-              decoration: BoxDecoration(
-                color: AppTheme.cardColor,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppTheme.divider),
-              ),
-              padding: const EdgeInsets.all(14),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SkeletonLoader(height: 10, width: 70, shimmer: true),
-                  SkeletonLoader(height: 22, width: 60, shimmer: true),
-                  SkeletonLoader(height: 9, width: 100, shimmer: true),
-                ],
-              ),
-            ),
-          )),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Expanded(
-              flex: 6,
-              child: SkeletonLoader(height: 220, shimmer: true, borderRadius: 10),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              flex: 4,
-              child: SkeletonLoader(height: 220, shimmer: true, borderRadius: 10),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const SkeletonLoader(height: 280, shimmer: true, borderRadius: 10),
-      ],
-    );
-  }
-
-  String _formatRelativeTime(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inSeconds < 60) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
-}
-
-// ============================================================================
-// KPI ROW - responsive 6 / 3 / 2 / 1 column grid
-// ============================================================================
-
-class _KpiRow extends StatelessWidget {
-  final List<Widget> children;
-  const _KpiRow({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final w = constraints.maxWidth;
-      int cols = 6;
-      if (w < 600) {
-        cols = 1;
-      } else if (w < 800) {
-        cols = 2;
-      } else if (w < 1100) {
-        cols = 3;
-      }
-
-      if (cols == 6) {
-        return Row(
+    final totalRevenue = _ledgerStats['totalRevenue'] ?? 0.0;
+    
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
           children: [
-            for (int i = 0; i < children.length; i++) ...[
-              Expanded(child: children[i]),
-              if (i < children.length - 1) const SizedBox(width: 12),
-            ],
-          ],
-        );
-      }
-
-      final rows = <Widget>[];
-      for (int i = 0; i < children.length; i += cols) {
-        final chunk = children.skip(i).take(cols).toList();
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
+            // Row 1: KPI strip
+            _buildResponsiveGrid(
+              crossAxisCount: 4,
+              childAspectRatio: 2.2,
               children: [
-                for (int j = 0; j < chunk.length; j++) ...[
-                  Expanded(child: chunk[j]),
-                  if (j < chunk.length - 1) const SizedBox(width: 12),
-                ],
-                for (int j = chunk.length; j < cols; j++) ...[
-                  const SizedBox(width: 12),
-                  const Expanded(child: SizedBox()),
-                ],
+                _buildKpiCard(
+                  label: 'Total diamonds',
+                  value: '${roughCount + diamondCount}',
+                  valueColor: const Color(0xFFA07820),
+                  sub: '${(roughWeight + diamondWeight).toStringAsFixed(2)} ct inventory',
+                ),
+                _buildKpiCard(
+                  label: 'Total revenue',
+                  value: AppHelpers.formatCurrency(totalRevenue),
+                  valueColor: const Color(0xFF15803D),
+                  sub: 'Lifetime sales',
+                ),
+                _buildKpiCard(
+                  label: 'Pending processes',
+                  value: '$_pendingProcesses',
+                  valueColor: const Color(0xFFB91C1C),
+                  sub: '${_overdueProcesses.length} overdue',
+                ),
+                _buildKpiCard(
+                  label: 'Net receivable',
+                  value: AppHelpers.formatCurrency(_pendingPaymentTotal),
+                  valueColor: const Color(0xFF0F172A),
+                  sub: 'From pending payments',
+                ),
               ],
             ),
-          ),
-        );
-      }
-      return Column(children: rows);
+            const SizedBox(height: 16),
+            
+            // Row 2: Pipeline
+            _buildCard(
+              title: 'Diamond pipeline',
+              expandChild: false,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _buildPipelineElements(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Row 3: Recent Diamonds & Recent Lots
+            _buildResponsiveGrid(
+              crossAxisCount: 2,
+              childAspectRatio: 1.5,
+              children: [
+                _buildCard(
+                  title: 'Recent Activity',
+                  child: _buildRecentActivityTable(),
+                ),
+                _buildCard(
+                  title: 'Overdue Processes',
+                  child: _buildOverdueProcessTable(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Row 4: Monthly Revenue, Stage Breakdown, Payments
+            _buildResponsiveGrid(
+              crossAxisCount: 3,
+              childAspectRatio: 1.2,
+              children: [
+                _buildCard(
+                  title: 'Monthly Revenue',
+                  child: Center(child: Text('Chart Placeholder', style: GoogleFonts.inter(color: AppTheme.textMuted))),
+                ),
+                _buildCard(
+                  title: 'Process stage breakdown',
+                  child: _buildStageBreakdownLines(),
+                ),
+                _buildCard(
+                  title: 'Recent Transactions',
+                  child: _buildTransactionsList(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveGrid({required int crossAxisCount, required double childAspectRatio, required List<Widget> children}) {
+    return LayoutBuilder(builder: (context, constraints) {
+      int cols = crossAxisCount;
+      if (constraints.maxWidth < 600) cols = 1;
+      else if (constraints.maxWidth < 900) cols = 2;
+      
+      return GridView.count(
+        crossAxisCount: cols,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        childAspectRatio: cols == 1 ? (childAspectRatio * 2) : childAspectRatio,
+        children: children,
+      );
     });
   }
-}
 
-// ============================================================================
-// KPI CARD
-// ============================================================================
-
-class _KpiCard extends StatefulWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-
-  const _KpiCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  State<_KpiCard> createState() => _KpiCardState();
-}
-
-class _KpiCardState extends State<_KpiCard> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        transform: Matrix4.identity()..translateByDouble(0.0, _hovered ? -2.0 : 0.0, 0.0, 1.0),
-        decoration: BoxDecoration(
-          color: AppTheme.cardColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: _hovered ? widget.color.withValues(alpha: 0.3) : AppTheme.divider,
-          ),
-          boxShadow: _hovered
-              ? [BoxShadow(color: widget.color.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 6))]
-              : AppTheme.cardShadow,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(height: 3, color: widget.color),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.title,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textSecondary,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          widget.value,
-                          style: GoogleFonts.inter(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                            height: 1.0,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.subtitle,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppTheme.textMuted,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: widget.color.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(widget.icon, size: 18, color: widget.color),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// PROCESS PIPELINE SECTION
-// ============================================================================
-
-class _ProcessPipelineSection extends StatelessWidget {
-  final List<Map<String, dynamic>> stageBreakdown;
-  const _ProcessPipelineSection({required this.stageBreakdown});
-
-  @override
-  Widget build(BuildContext context) {
-    return _DashboardPanel(
-      title: 'PRODUCTION PIPELINE',
-      icon: Icons.precision_manufacturing_outlined,
-      child: stageBreakdown.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
-              child: EmptyState(
-                message: 'No active processes',
-                icon: Icons.precision_manufacturing_outlined,
-              ),
-            )
-          : Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: stageBreakdown
-                    .map((s) => _StageTile(
-                          name: s['name'] as String,
-                          count: s['count'] as int,
-                        ))
-                    .toList(),
-              ),
-            ),
-    );
-  }
-}
-
-class _StageTile extends StatelessWidget {
-  final String name;
-  final int count;
-  const _StageTile({required this.name, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildKpiCard({required String label, required String value, required Color valueColor, required String sub}) {
     return Container(
-      width: 108,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceSoft,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: const Border(top: BorderSide(color: AppTheme.kpiProcess, width: 3)),
+        border: Border.all(color: AppTheme.divider, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            '$count',
-            style: GoogleFonts.inter(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
-          ),
+          Text(label.toUpperCase(), style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textSecondary, letterSpacing: 0.6, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          Text(value, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w600, color: valueColor)),
           const SizedBox(height: 2),
-          Text(
-            name,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              color: AppTheme.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+          Text(sub, style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textMuted)),
         ],
       ),
     );
   }
-}
 
-// ============================================================================
-// PAYMENT ALERT PANEL
-// ============================================================================
-
-class _PaymentAlertPanel extends StatelessWidget {
-  final double pendingTotal;
-  final List<Payment> pendingPayments;
-  final List<Payment> recentPayments;
-
-  const _PaymentAlertPanel({
-    required this.pendingTotal,
-    required this.pendingPayments,
-    required this.recentPayments,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _DashboardPanel(
-      title: 'PAYMENT ALERTS',
-      icon: Icons.notifications_outlined,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.danger.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.danger.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, size: 16, color: AppTheme.danger),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${pendingPayments.length} pending - ${AppHelpers.formatCurrency(pendingTotal)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.danger,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (pendingPayments.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ...pendingPayments.take(4).map((p) => _PaymentRow(payment: p, isAlert: true)),
-          ],
-          if (recentPayments.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Divider(color: AppTheme.divider, height: 1),
-            ),
-            Text(
-              'RECENTLY COMPLETED',
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textMuted,
-                letterSpacing: 0.8,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...recentPayments.map((p) => _PaymentRow(payment: p, isAlert: false)),
-          ],
-          if (pendingPayments.isEmpty && recentPayments.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: EmptyState(
-                message: 'No payment records',
-                icon: Icons.account_balance_wallet_outlined,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentRow extends StatelessWidget {
-  final Payment payment;
-  final bool isAlert;
-  const _PaymentRow({required this.payment, required this.isAlert});
-
-  @override
-  Widget build(BuildContext context) {
-    final amtColor = isAlert ? AppTheme.danger : AppTheme.success;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  payment.partyName ?? 'Unknown',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  AppHelpers.displayDate(payment.date),
-                  style: GoogleFonts.inter(fontSize: 10, color: AppTheme.textMuted),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            AppHelpers.formatCurrency(payment.amount),
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: amtColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// RECENT ACTIVITY TABLE
-// ============================================================================
-
-class _RecentActivityTable extends StatelessWidget {
-  final List<Process> processes;
-  const _RecentActivityTable({required this.processes});
-
-  static const _headers = ['Diamond Code', 'Process', 'Party', 'Date', 'Status'];
-
-  @override
-  Widget build(BuildContext context) {
-    final recentProcesses = processes.take(10).toList();
-
-    return _DashboardPanel(
-      title: 'RECENT ACTIVITY',
-      icon: Icons.history_rounded,
-      child: recentProcesses.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
-              child: EmptyState(
-                message: 'No process activity yet',
-                icon: Icons.history_rounded,
-              ),
-            )
-          : Column(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceSoft,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    children: _headers
-                        .map((h) => Expanded(
-                              child: Text(
-                                h,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.textSecondary,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ))
-                        .toList(),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 6, left: 2),
-                    child: Text(
-                      'Showing latest 10 activities',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppTheme.textMuted,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  height: 300,
-                  child: Scrollbar(
-                    thumbVisibility: true,
-                    child: ListView.builder(
-                      itemCount: recentProcesses.length,
-                      itemBuilder: (context, i) {
-                        final p = recentProcesses[i];
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: i.isOdd
-                                ? AppTheme.surfaceSoft.withValues(alpha: 0.5)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  p.diamondCode ?? '-',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  p.processTypeName ?? '-',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  p.partyName.isEmpty ? '-' : p.partyName,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  AppHelpers.displayDate(p.fromDate),
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppTheme.textMuted,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: StatusChip(status: p.status),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-// ============================================================================
-// OVERDUE PROCESSES PANEL
-// ============================================================================
-
-class _OverdueProcessesPanel extends StatelessWidget {
-  final List<Process> overdueProcesses;
-  const _OverdueProcessesPanel({required this.overdueProcesses});
-
-  @override
-  Widget build(BuildContext context) {
-    return _DashboardPanel(
-      title: 'OVERDUE PROCESSES',
-      icon: Icons.warning_amber_rounded,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.danger.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.danger.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.timelapse_outlined, size: 16, color: AppTheme.danger),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${overdueProcesses.length} process${overdueProcesses.length == 1 ? '' : 'es'} past deadline — action required',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.danger,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...overdueProcesses.map((p) => _OverdueProcessRow(process: p)),
-        ],
-      ),
-    );
-  }
-}
-
-class _OverdueProcessRow extends StatelessWidget {
-  final Process process;
-  const _OverdueProcessRow({required this.process});
-
-  @override
-  Widget build(BuildContext context) {
-    final toDate = process.toDate;
-    int daysOverdue = 0;
-    if (toDate != null && toDate.isNotEmpty) {
-      try {
-        final deadline = DateTime.parse(toDate);
-        daysOverdue = DateTime.now().difference(deadline).inDays;
-      } catch (_) {}
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  process.diamondCode ?? '-',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                Text(
-                  process.processTypeName ?? '-',
-                  style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  process.partyName.isEmpty ? '-' : process.partyName,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'Due: ${AppHelpers.displayDate(toDate)}',
-                  style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textMuted),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppTheme.danger.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.danger.withValues(alpha: 0.25)),
-            ),
-            child: Text(
-              '$daysOverdue day${daysOverdue == 1 ? '' : 's'} overdue',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.danger,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// SHARED DASHBOARD PANEL CONTAINER
-// ============================================================================
-
-class _DashboardPanel extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Widget child;
-
-  const _DashboardPanel({
-    required this.title,
-    required this.icon,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildCard({
+    required String title,
+    required Widget child,
+    bool expandChild = true,
+  }) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.cardColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.divider),
-        boxShadow: AppTheme.cardShadow,
+        border: Border.all(color: AppTheme.divider, width: 0.5),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          Text(title.toUpperCase(), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textSecondary, letterSpacing: 0.7)),
+          const SizedBox(height: 12),
+          if (expandChild) Expanded(child: child) else child,
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPipelineElements() {
+    if (_stageBreakdown.isEmpty) return [Text('No active pipelines', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textMuted))];
+    List<Widget> nodes = [];
+    for (int i = 0; i < _stageBreakdown.length; i++) {
+       final s = _stageBreakdown[i];
+       Color c = const Color(0xFF185FA5);
+       if (i == 0) c = const Color(0xFFA07820);
+       else if (i == _stageBreakdown.length - 1) c = const Color(0xFF15803D);
+       
+       nodes.add(Container(
+         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+         decoration: BoxDecoration(
+           color: const Color(0xFFF1F5F9),
+           borderRadius: BorderRadius.circular(8),
+           border: Border.all(color: AppTheme.divider, width: 0.5),
+         ),
+         child: Column(
+           children: [
+             Text('${s['count']}', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w600, color: c)),
+             const SizedBox(height: 2),
+             Text(s['name'], style: GoogleFonts.inter(fontSize: 10, color: AppTheme.textSecondary)),
+           ],
+         ),
+       ));
+       if (i < _stageBreakdown.length - 1) {
+         nodes.add(const Padding(
+           padding: EdgeInsets.symmetric(horizontal: 10),
+           child: Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 20),
+         ));
+       }
+    }
+    return nodes;
+  }
+
+  Widget _buildRecentActivityTable() {
+    return ListView(
+      children: [
+        _buildTableHeader(['Code', 'Process', 'Party', 'Status']),
+        ..._recentActivity.take(5).map((p) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
             children: [
-              Icon(icon, size: 14, color: AppTheme.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textSecondary,
-                  letterSpacing: 0.9,
-                ),
-              ),
+              Expanded(child: Text(p.diamondCode ?? '-', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
+              Expanded(child: Text(p.processTypeName ?? '-', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary))),
+              Expanded(child: Text(p.partyName.isEmpty ? '-' : p.partyName, style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary))),
+              Expanded(child: _buildBadge(p.status)),
             ],
           ),
-          const SizedBox(height: 4),
-          const Divider(color: AppTheme.divider, height: 16),
-          child,
-        ],
+        )),
+      ],
+    );
+  }
+
+  Widget _buildOverdueProcessTable() {
+    return ListView(
+      children: [
+        _buildTableHeader(['Diamond', 'Stage', 'Party', 'Since']),
+        ..._overdueProcesses.take(5).map((p) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Expanded(child: Text(p.diamondCode ?? '-', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
+              Expanded(child: Text(p.processTypeName ?? '-', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary))),
+              Expanded(child: Text(p.partyName.isEmpty ? '-' : p.partyName, style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary))),
+              Expanded(child: Text(AppHelpers.displayDate(p.toDate), style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFB91C1C)))),
+            ],
+          ),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildStageBreakdownLines() {
+    int total = _stageBreakdown.fold(0, (sum, item) => sum + (item['count'] as int));
+    if (total == 0) total = 1;
+    return ListView(
+      children: _stageBreakdown.map((s) {
+        final count = s['count'] as int;
+        final pct = count / total;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              SizedBox(width: 70, child: Text(s['name'], style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary))),
+              Expanded(
+                child: Container(
+                  height: 6,
+                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(3)),
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: pct,
+                    child: Container(decoration: BoxDecoration(color: const Color(0xFF185FA5), borderRadius: BorderRadius.circular(3))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(width: 30, child: Text('$count', textAlign: TextAlign.right, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildTransactionsList() {
+    return ListView(
+      children: _recentPayments.take(5).map((p) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+               child: Column(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   Text(p.partyName ?? 'Unknown', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500)),
+                   Text(AppHelpers.displayDate(p.date), style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textMuted)),
+                 ]
+               )
+            ),
+            Text(AppHelpers.formatCurrency(p.amount), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF15803D))),
+          ],
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _buildTableHeader(List<String> headers) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: headers.map((h) => Expanded(
+          child: Text(h.toUpperCase(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.textMuted, letterSpacing: 0.5))
+        )).toList(),
       ),
     );
+  }
+
+  Widget _buildBadge(String status) {
+    Color bg = const Color(0xFFF1F5F9);
+    Color fg = const Color(0xFF475569);
+    if (status == 'completed') { bg = const Color(0xFFEAF3DE); fg = const Color(0xFF27500A); }
+    else if (status == 'pending') { bg = const Color(0xFFFAEEDA); fg = const Color(0xFF633806); }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+        child: Text(status.capitalize(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: fg)),
+      ),
+    );
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
 }
