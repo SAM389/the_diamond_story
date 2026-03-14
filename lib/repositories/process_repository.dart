@@ -170,7 +170,7 @@ class ProcessRepository {
   Future<int> countCompleted() async {
     final db = await _db.database;
     final result = await db.rawQuery(
-      "SELECT COUNT(*) as cnt FROM processes WHERE status = 'completed'",
+      "SELECT COUNT(DISTINCT diamond_id) as cnt FROM processes WHERE status = 'completed'",
     );
     return result.first['cnt'] as int;
   }
