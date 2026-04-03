@@ -42,9 +42,21 @@ class _DiamondsPageState extends State<DiamondsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         // ── Page Header ───────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
@@ -122,7 +134,8 @@ class _DiamondsPageState extends State<DiamondsPage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -139,7 +152,7 @@ class _DiamondsPageState extends State<DiamondsPage> {
           icon: Icons.diamond_outlined,
           label: 'Total Diamonds',
           value: filtered.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -170,10 +183,10 @@ class _DiamondsPageState extends State<DiamondsPage> {
   Widget _buildTable(List<Diamond> diamonds) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -182,8 +195,8 @@ class _DiamondsPageState extends State<DiamondsPage> {
           children: [
             // Header row
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(children: [
                 _hCell('Diamond Code', flex: 3),
                 _hCell('Parent Lot', flex: 2),
@@ -198,12 +211,14 @@ class _DiamondsPageState extends State<DiamondsPage> {
               child: ListView.separated(
                 itemCount: diamonds.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final d = diamonds[i];
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(children: [
                       _dCell(
                         flex: 3,
@@ -214,7 +229,7 @@ class _DiamondsPageState extends State<DiamondsPage> {
                           Text(d.diamondCode,
                               style: GoogleFonts.inter(
                                   fontWeight: FontWeight.w600,
-                                  color: AppTheme.primary,
+                                  color: AppTheme.accent,
                                   fontSize: 13)),
                         ]),
                       ),
@@ -224,14 +239,14 @@ class _DiamondsPageState extends State<DiamondsPage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.07),
+                            color: AppTheme.accent.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(d.parentLot,
                               style: GoogleFonts.inter(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: AppTheme.primary)),
+                                  color: AppTheme.accent)),
                         ),
                       ),
                       _dCell(
@@ -241,7 +256,7 @@ class _DiamondsPageState extends State<DiamondsPage> {
                       ),
                       _dCell(
                         flex: 2,
-                        child: StatusChip(status: d.status),
+                        child: _diamondStatusChip(d.status),
                       ),
                       _dCell(
                         flex: 2,
@@ -266,7 +281,7 @@ class _DiamondsPageState extends State<DiamondsPage> {
                                   child: Icon(
                                     Icons.edit_outlined,
                                     size: 18,
-                                    color: AppTheme.primary,
+                                    color: AppTheme.accent,
                                   ),
                                 ),
                               ),
@@ -314,16 +329,34 @@ class _DiamondsPageState extends State<DiamondsPage> {
     );
   }
 
+  Widget _diamondStatusChip(String status) {
+    final normalized = status.toLowerCase();
+    final (bg, fg) = switch (normalized) {
+      'raw' => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
+      'in_process' => (const Color(0xFFFFF4D6), const Color(0xFFB45309)),
+      'completed' => (const Color(0xFFDDF8E8), const Color(0xFF166534)),
+      'sold' => (const Color(0xFFDCEAFE), const Color(0xFF1D4ED8)),
+      'pending' => (const Color(0xFFFFEDD5), const Color(0xFFC2410C)),
+      _ => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
+    };
+
+    return StatusChip(
+      status: normalized,
+      backgroundColor: bg,
+      textColor: fg,
+    );
+  }
+
   Widget _hCell(String text, {required int flex}) => Expanded(
         flex: flex,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(text,
               style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3)),
+                  color: AppTheme.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2)),
         ),
       );
 
@@ -349,9 +382,9 @@ class _StatusFilter extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppTheme.background,
+        color: Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(AppTheme.buttonRadius),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -392,10 +425,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -413,18 +446,24 @@ class _StatCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label,
-                      style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                          fontWeight: FontWeight.w500)),
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(value,
-                      style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary),
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -445,6 +484,8 @@ class _EditDiamondCodeDialog extends StatefulWidget {
 }
 
 class _EditDiamondCodeDialogState extends State<_EditDiamondCodeDialog> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _suffixCtrl;
   bool _saving = false;
@@ -554,7 +595,7 @@ class _EditDiamondCodeDialogState extends State<_EditDiamondCodeDialog> {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.primary,
+                    color: AppTheme.accent,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -568,13 +609,17 @@ class _EditDiamondCodeDialogState extends State<_EditDiamondCodeDialog> {
                     const SizedBox(width: 8),
                     FilledButton(
                       onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _brightActionYellow,
+                        foregroundColor: const Color(0xFF1A1A1A),
+                      ),
                       child: _saving
                           ? const SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: Color(0xFF1A1A1A),
                               ),
                             )
                           : const Text('Save'),
@@ -589,3 +634,5 @@ class _EditDiamondCodeDialogState extends State<_EditDiamondCodeDialog> {
     );
   }
 }
+
+

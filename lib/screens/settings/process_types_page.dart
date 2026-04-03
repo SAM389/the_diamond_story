@@ -13,6 +13,15 @@ class ProcessTypesPage extends StatefulWidget {
 }
 
 class _ProcessTypesPageState extends State<ProcessTypesPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +55,7 @@ class _ProcessTypesPageState extends State<ProcessTypesPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
+            style: _brightActionButtonStyle(),
             onPressed: () async {
               if (ctrl.text.trim().isEmpty) return;
               Navigator.pop(ctx);
@@ -72,6 +82,7 @@ class _ProcessTypesPageState extends State<ProcessTypesPage> {
             action: FilledButton.icon(
               icon: const Icon(Icons.add),
               label: const Text('Add Type'),
+              style: _brightActionButtonStyle(),
               onPressed: _showAddDialog,
             ),
           ),
@@ -92,16 +103,16 @@ class _ProcessTypesPageState extends State<ProcessTypesPage> {
                   itemBuilder: (context, i) {
                     final type = provider.processTypes[i];
                     return AppCard(
-                      accentColor: AppTheme.primary,
+                      accentColor: AppTheme.accent,
                       child: Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.1),
+                              color: AppTheme.accent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.precision_manufacturing, color: AppTheme.primary),
+                            child: const Icon(Icons.precision_manufacturing, color: AppTheme.accent),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -147,3 +158,4 @@ class _ProcessTypesPageState extends State<ProcessTypesPage> {
     );
   }
 }
+

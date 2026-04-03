@@ -20,14 +20,17 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = {
-      'raw': (const Color(0xFFE3F2FD), const Color(0xFF1976D2)),
-      'in_process': (const Color(0xFFF3E5F5), const Color(0xFF7B1FA2)),
-      'completed': (const Color(0xFFE8F5E9), const Color(0xFF388E3C)),
-      'sold': (const Color(0xFFFCE4EC), const Color(0xFFC2185B)),
-      'pending': (const Color(0xFFFFF3E0), const Color(0xFF1565C0)),
-      'active': (const Color(0xFFE0F2F1), const Color(0xFF00897B)),
+      'raw': (const Color(0xFF334155), const Color(0xFF94A3B8)),
+      'in_process': (const Color(0xFF78350F), const Color(0xFFFBBF24)),
+      'completed': (const Color(0xFF064E3B), const Color(0xFF34D399)),
+      'sold': (const Color(0xFF1E3A8A), const Color(0xFF60A5FA)),
+      'pending': (const Color(0xFF451A03), const Color(0xFFFB923C)),
+      'active': (const Color(0xFF064E3B), const Color(0xFF2DD4BF)),
+      'paid': (const Color(0xFF064E3B), const Color(0xFF34D399)),
+      'received': (const Color(0xFF1E3A8A), const Color(0xFF60A5FA)),
     };
-    final (bg, fg) = colors[status] ?? (const Color(0xFFF5F5F5), const Color(0xFF616161));
+    final (bg, fg) =
+        colors[status] ?? (const Color(0xFF334155), const Color(0xFF94A3B8));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(color: backgroundColor ?? bg, borderRadius: BorderRadius.circular(16)),
@@ -105,7 +108,7 @@ class EmptyState extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             message,
-            style: const TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15, fontWeight: FontWeight.w500),
             textAlign: TextAlign.center,
           ),
           if (ctaLabel != null && onCta != null) ...[
@@ -129,20 +132,50 @@ class EmptyState extends StatelessWidget {
 Future<bool> showDeleteConfirmDialog(BuildContext context, String item) async {
   final result = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Confirm Delete'),
-      content: Text('Delete "$item"? This cannot be undone.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Cancel'),
+    builder: (ctx) => Dialog(
+      backgroundColor: const Color(0xFFF1F5F9),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Confirm Delete',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Delete "$item"? This cannot be undone.',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Delete'),
+                )
+              ],
+            ),
+          ],
         ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-          child: const Text('Delete'),
-        )
-      ],
+      ),
     ),
   );
   return result ?? false;
@@ -272,7 +305,7 @@ class AppFormField extends StatelessWidget {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.grey,
+              color: AppTheme.textSecondary,
               letterSpacing: 0.3,
             ),
             children: required
@@ -312,66 +345,72 @@ class AppDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ...fields.map(
-                (f) => Padding(padding: const EdgeInsets.only(bottom: 16), child: f),
-              ),
-              if (errorMessage != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Text(
-                    errorMessage!,
-                    style: TextStyle(fontSize: 13, color: Colors.red.shade700),
-                  ),
-                ),
-                const SizedBox(height: 16)
-              ],
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: loading ? null : onConfirm,
-                    child: loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(confirmLabel),
-                  )
-                ],
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x4A000000),
+                blurRadius: 40,
+                offset: Offset(0, 18),
               )
             ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ...fields.map(
+                  (f) => Padding(padding: const EdgeInsets.only(bottom: 16), child: f),
+                ),
+                if (errorMessage != null) ...[
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                  ),
+                  const SizedBox(height: 16)
+                ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: loading ? null : onConfirm,
+                      child: loading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(confirmLabel),
+                    )
+                  ],
+                )
+              ],
+            ),
           ),
         ),
       ),
@@ -494,18 +533,19 @@ class TableSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.5),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: Column(
         children: [
           Container(
-            height: 48,
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A237E),
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceSoft,
               borderRadius:
-                  BorderRadius.only(topLeft: Radius.circular(8), topRight: Radius.circular(8)),
+                  const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -523,8 +563,10 @@ class TableSkeleton extends StatelessWidget {
           ...List.generate(
             rows,
             (i) => Container(
-              height: 48,
-              color: i.isEven ? Colors.white : Colors.grey[50],
+              height: 52,
+              color: i.isEven
+                  ? Colors.transparent
+                  : AppTheme.surfaceSoft.withValues(alpha: 0.45),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: List.generate(
@@ -567,9 +609,10 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.5),
+        boxShadow: AppTheme.cardShadow,
       ),
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
@@ -583,11 +626,11 @@ class AppCard extends StatelessWidget {
                 child: InkWell(
                   onTap: onTap,
                   borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(8),
-                    bottomRight: Radius.circular(8),
+                    topRight: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
                   child: Padding(
-                    padding: padding ?? const EdgeInsets.all(20),
+                    padding: padding ?? const EdgeInsets.all(24),
                     child: child,
                   ),
                 ),
@@ -627,8 +670,8 @@ class SectionLabel extends StatelessWidget {
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w700,
-        color: AppTheme.primary,
-        letterSpacing: 1.1,
+        color: AppTheme.accent.withValues(alpha: 0.7),
+        letterSpacing: 2,
       ),
     );
 
@@ -713,20 +756,21 @@ class StyledTable extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.5),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Column(
           children: [
             // Header
             Container(
-              height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1A237E),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceSoft,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
                 ),
               ),
               child: Row(
@@ -741,9 +785,10 @@ class StyledTable extends StatelessWidget {
                         child: Text(
                           columns[i],
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                            color: AppTheme.textMuted,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                            letterSpacing: 1.2,
                           ),
                         ),
                       ),
@@ -759,7 +804,7 @@ class StyledTable extends StatelessWidget {
                 child: Center(
                   child: Text(
                     'No data available',
-                    style: TextStyle(color: Colors.grey[500]),
+                    style: const TextStyle(color: AppTheme.textSecondary),
                   ),
                 ),
               ),
@@ -768,8 +813,10 @@ class StyledTable extends StatelessWidget {
               (i) => MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: Container(
-                  height: 48,
-                  color: i.isEven ? Colors.white : Colors.grey[50],
+                  height: 52,
+                  color: i.isEven
+                      ? Colors.transparent
+                      : AppTheme.surfaceSoft.withValues(alpha: 0.45),
                   child: Row(
                     children: List.generate(
                       rows[i].cells.length,
@@ -832,3 +879,5 @@ void showErrorSnack(BuildContext context, String message) {
     ),
   );
 }
+
+

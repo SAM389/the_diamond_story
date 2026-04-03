@@ -13,6 +13,15 @@ class ExpenseCategoryPage extends StatefulWidget {
 }
 
 class _ExpenseCategoryPageState extends State<ExpenseCategoryPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +44,7 @@ class _ExpenseCategoryPageState extends State<ExpenseCategoryPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
+            style: _brightActionButtonStyle(),
             onPressed: () async {
               if (ctrl.text.trim().isEmpty) return;
               Navigator.pop(ctx);
@@ -61,6 +71,7 @@ class _ExpenseCategoryPageState extends State<ExpenseCategoryPage> {
             action: FilledButton.icon(
               icon: const Icon(Icons.add),
               label: const Text('Add Category'),
+              style: _brightActionButtonStyle(),
               onPressed: _showAddDialog,
             ),
           ),
@@ -144,3 +155,4 @@ class _ExpenseCategoryPageState extends State<ExpenseCategoryPage> {
     );
   }
 }
+

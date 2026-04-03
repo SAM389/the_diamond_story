@@ -73,7 +73,12 @@ class InventoryProvider extends ChangeNotifier {
       if (newLotId != null) {
         await _roughRepo.delete(newLotId);
       }
-      _error = e.toString();
+      final msg = e.toString();
+      if (msg.contains('UNIQUE constraint failed: rough_stones.lot_no')) {
+        _error = 'Lot number already exists. Please choose a different lot number.';
+      } else {
+        _error = msg;
+      }
       notifyListeners();
       return false;
     }
@@ -196,14 +201,18 @@ class InventoryProvider extends ChangeNotifier {
     final diamondCount = await _diamondRepo.count();
     final roughWeight = await _roughRepo.totalWeight();
     final diamondWeight = await _diamondRepo.totalWeight();
+    final rawCount = await _diamondRepo.countByStatus('raw');
     final inProcessCount = await _diamondRepo.countByStatus('in_process');
+    final completedCount = await _diamondRepo.countByStatus('completed');
     final soldCount = await _diamondRepo.countByStatus('sold');
     return {
       'roughCount': roughCount,
       'diamondCount': diamondCount,
       'roughWeight': roughWeight,
       'diamondWeight': diamondWeight,
+      'rawDiamonds': rawCount,
       'inProcessDiamonds': inProcessCount,
+      'completedDiamonds': completedCount,
       'soldDiamonds': soldCount,
     };
   }

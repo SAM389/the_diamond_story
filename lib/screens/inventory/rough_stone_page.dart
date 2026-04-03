@@ -1,13 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/helpers.dart';
 import '../../core/utils/app_theme.dart';
-import '../../models/party.dart';
 import '../../models/rough_stone.dart';
 import '../../providers/inventory_provider.dart';
-import '../../providers/ledger_provider.dart';
 import '../../widgets/data_table_widget.dart';
+import '../../widgets/rough_stone_dialog.dart';
 
 class RoughStonePage extends StatefulWidget {
   const RoughStonePage({super.key});
@@ -17,6 +16,15 @@ class RoughStonePage extends StatefulWidget {
 }
 
 class _RoughStonePageState extends State<RoughStonePage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
@@ -36,7 +44,10 @@ class _RoughStonePageState extends State<RoughStonePage> {
   }
 
   void _showAddDialog({RoughStone? existing}) {
-    showDialog(context: context, builder: (_) => _RoughStoneDialog(existing: existing));
+    showDialog<bool>(
+      context: context,
+      builder: (_) => RoughStoneDialog(existing: existing),
+    );
   }
 
   void _showSplitDialog(RoughStone stone) {
@@ -45,9 +56,21 @@ class _RoughStonePageState extends State<RoughStonePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         // -- Page Header ---------------------------------------------------
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
@@ -74,6 +97,7 @@ class _RoughStonePageState extends State<RoughStonePage> {
                 FilledButton.icon(
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Add Rough Stone'),
+                  style: _brightActionButtonStyle(),
                   onPressed: () => _showAddDialog(),
                 ),
               ],
@@ -132,7 +156,8 @@ class _RoughStonePageState extends State<RoughStonePage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -146,7 +171,7 @@ class _RoughStonePageState extends State<RoughStonePage> {
           icon: Icons.inventory_2_outlined,
           label: 'Total Lots',
           value: stones.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -176,10 +201,10 @@ class _RoughStonePageState extends State<RoughStonePage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -188,8 +213,8 @@ class _RoughStonePageState extends State<RoughStonePage> {
           children: [
             // Header row
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(children: [
                 _hCell('Lot No', flex: 2),
                 _hCell('Title', flex: 3),
@@ -205,20 +230,22 @@ class _RoughStonePageState extends State<RoughStonePage> {
               child: ListView.separated(
                 itemCount: stones.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final s = stones[i];
                   final alreadySplit = splitLots.contains(s.lotNo);
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(children: [
                       _dCell(
                         flex: 2,
                         child: Text(s.lotNo,
                             style: GoogleFonts.inter(
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.primary,
+                            color: AppTheme.accent,
                                 fontSize: 13)),
                       ),
                       _dCell(
@@ -261,7 +288,7 @@ class _RoughStonePageState extends State<RoughStonePage> {
                           ),
                           _actionBtn(
                             icon: Icons.edit_outlined,
-                            color: AppTheme.primary,
+                            color: AppTheme.accent,
                             tooltip: 'Edit',
                             onTap: () => _showAddDialog(existing: s),
                           ),
@@ -307,10 +334,10 @@ class _RoughStonePageState extends State<RoughStonePage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(text,
               style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3)),
+                  color: AppTheme.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2)),
         ),
       );
 
@@ -332,7 +359,7 @@ class _RoughStonePageState extends State<RoughStonePage> {
             style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF7A5C00))),
+                color: AppTheme.accent)),
       );
 
   Widget _actionBtn({
@@ -374,10 +401,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+              border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -417,317 +444,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _RoughStoneDialog extends StatefulWidget {
-  final RoughStone? existing;
-  const _RoughStoneDialog({this.existing});
-
-  @override
-  State<_RoughStoneDialog> createState() => _RoughStoneDialogState();
-}
-
-class _RoughStoneDialogState extends State<_RoughStoneDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _lotNo, _title, _weight, _quality, _price, _date, _notes;
-  int? _supplierId;
-  bool _saving = false;
-  String? _errorMsg;
-
-  @override
-  void initState() {
-    super.initState();
-    final s = widget.existing;
-    _lotNo = TextEditingController(text: s?.lotNo ?? '');
-    _title = TextEditingController(text: s?.title ?? '');
-    _weight = TextEditingController(text: s != null ? s.weight.toString() : '');
-    _quality = TextEditingController(text: s?.quality ?? '');
-    _price = TextEditingController(text: s != null ? s.purchasePrice.toString() : '');
-    _date = TextEditingController(text: s?.purchaseDate ?? AppHelpers.today());
-    _notes = TextEditingController(text: s?.notes ?? '');
-    _supplierId = s?.supplierId;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ledger = context.read<LedgerProvider>();
-      if (ledger.parties.isEmpty) {
-        ledger.loadAll();
-      }
-    });
-
-    if (s == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        final nextLot = await context.read<InventoryProvider>().getNextLotNo();
-        if (mounted) _lotNo.text = nextLot;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final c in [_lotNo, _title, _weight, _quality, _price, _date, _notes]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  Future<bool> _confirmEditSave() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Changes'),
-        content: const Text('Do you want to make the changes?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes, Save'),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
-
-  String? _selectedSupplierName(List<Party> suppliers) {
-    if (_supplierId == null) return null;
-    for (final supplier in suppliers) {
-      if (supplier.id == _supplierId) return supplier.name;
-    }
-    return 'Unknown supplier (#$_supplierId)';
-  }
-
-  Future<void> _openSupplierPicker(List<Party> suppliers) async {
-    if (suppliers.isEmpty) return;
-
-    final selectedId = await showDialog<int>(
-      context: context,
-      builder: (context) {
-        final searchCtrl = TextEditingController();
-        String query = '';
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final filtered = suppliers.where((supplier) {
-              return supplier.name.toLowerCase().contains(query.trim().toLowerCase());
-            }).toList();
-
-            return AlertDialog(
-              title: const Text('Select Supplier'),
-              content: SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: searchCtrl,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Search supplier',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) => setDialogState(() => query = value),
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: filtered.isEmpty
-                          ? const Center(child: Text('No supplier matches your search.'))
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, _) => const Divider(height: 1),
-                              itemBuilder: (_, index) {
-                                final supplier = filtered[index];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(supplier.name),
-                                  trailing: supplier.id == _supplierId
-                                      ? const Icon(Icons.check, size: 18)
-                                      : null,
-                                  onTap: () => Navigator.pop(context, supplier.id),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (!mounted || selectedId == null) return;
-    setState(() => _supplierId = selectedId);
-  }
-
-  Future<void> _pickPurchaseDate() async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: AppHelpers.parseDate(_date.text),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (!mounted || selected == null) return;
-    setState(() => _date.text = AppHelpers.formatDate(selected));
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_supplierId == null) {
-      setState(() => _errorMsg = 'Supplier is required.');
-      return;
-    }
-
-    if (widget.existing != null) {
-      final confirmed = await _confirmEditSave();
-      if (!confirmed) return;
-    }
-
-    setState(() {
-      _saving = true;
-      _errorMsg = null;
-    });
-
-    final stone = RoughStone(
-      id: widget.existing?.id,
-      lotNo: _lotNo.text.trim(),
-      title: _title.text.trim(),
-      weight: double.tryParse(_weight.text) ?? 0,
-      quality: _quality.text.trim(),
-      purchasePrice: double.tryParse(_price.text) ?? 0,
-      purchaseDate: _date.text.trim(),
-      supplierId: _supplierId,
-      notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-      createdAt: widget.existing?.createdAt ?? DateTime.now().toIso8601String(),
-    );
-
-    final provider = context.read<InventoryProvider>();
-    final success = widget.existing == null
-        ? await provider.addRoughStone(stone)
-        : await provider.updateRoughStone(stone);
-
-    if (mounted) {
-      if (success) {
-        Navigator.pop(context);
-        showSuccessSnack(context, widget.existing == null ? 'Rough stone added.' : 'Rough stone updated.');
-      } else {
-        setState(() {
-          _saving = false;
-          _errorMsg = provider.error ?? 'Error saving.';
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final suppliers = context
-        .watch<LedgerProvider>()
-        .parties
-        .where((p) => p.type == 'supplier')
-        .toList();
-    final selectedSupplierName = _selectedSupplierName(suppliers);
-
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.existing == null ? 'Add Rough Stone' : 'Edit Rough Stone',
-                      style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
-                  const SizedBox(height: 24),
-                  Row(children: [
-                    Expanded(child: AppFormField(label: 'Lot Number', required: true, child: TextFormField(controller: _lotNo, decoration: const InputDecoration(hintText: 'LOT-001'), validator: (v) => v!.isEmpty ? 'Required' : null))),
-                    const SizedBox(width: 16),
-                    Expanded(child: AppFormField(label: 'Title', required: true, child: TextFormField(controller: _title, decoration: const InputDecoration(hintText: 'Stone name'), validator: (v) => v!.isEmpty ? 'Required' : null))),
-                  ]),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(child: AppFormField(label: 'Weight (ct)', required: true, child: TextFormField(controller: _weight, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(hintText: '0.000'), validator: (v) => v!.isEmpty ? 'Required' : null))),
-                    const SizedBox(width: 16),
-                    Expanded(child: AppFormField(label: 'Quality', required: true, child: TextFormField(controller: _quality, decoration: const InputDecoration(hintText: 'A / B / C'), validator: (v) => v!.isEmpty ? 'Required' : null))),
-                  ]),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(child: AppFormField(label: 'Purchase Price (\u20b9)', required: true, child: TextFormField(controller: _price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(hintText: '0.00'), validator: (v) => v!.isEmpty ? 'Required' : null))),
-                    const SizedBox(width: 16),
-                    Expanded(child: AppFormField(label: 'Purchase Date', required: true, child: TextFormField(controller: _date, readOnly: true, onTap: _pickPurchaseDate, decoration: const InputDecoration(hintText: 'yyyy-MM-dd', suffixIcon: Icon(Icons.calendar_today_outlined)), validator: (v) => v!.isEmpty ? 'Required' : null))),
-                  ]),
-                  const SizedBox(height: 16),
-                  AppFormField(
-                    label: 'Supplier',
-                    required: true,
-                    child: InkWell(
-                      onTap: suppliers.isEmpty ? null : () => _openSupplierPicker(suppliers),
-                      borderRadius: BorderRadius.circular(4),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          suffixIcon: Icon(Icons.search),
-                        ),
-                        child: Text(
-                          selectedSupplierName ??
-                              (suppliers.isEmpty ? 'No suppliers available' : 'Search and select supplier'),
-                          style: TextStyle(
-                            color: selectedSupplierName == null
-                                ? AppTheme.textSecondary
-                                : AppTheme.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (suppliers.isEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add a supplier first in Ledger > Parties.',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  AppFormField(label: 'Notes', child: TextFormField(controller: _notes, maxLines: 2, decoration: const InputDecoration(hintText: 'Optional notes'))),
-                  if (_errorMsg != null) ...[
-                    const SizedBox(height: 12),
-                    Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)), child: Text(_errorMsg!, style: GoogleFonts.inter(fontSize: 13, color: Colors.red.shade700))),
-                  ],
-                  const SizedBox(height: 24),
-                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                    const SizedBox(width: 8),
-                    FilledButton(onPressed: _saving ? null : _save, child: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Save')),
-                  ]),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SplitLotDialog extends StatefulWidget {
   final RoughStone stone;
   const _SplitLotDialog({required this.stone});
@@ -737,6 +453,8 @@ class _SplitLotDialog extends StatefulWidget {
 }
 
 class _SplitLotDialogState extends State<_SplitLotDialog> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
   final _countCtrl = TextEditingController(text: '2');
   bool _splitting = false;
 
@@ -767,6 +485,8 @@ class _SplitLotDialogState extends State<_SplitLotDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(
@@ -788,14 +508,30 @@ class _SplitLotDialogState extends State<_SplitLotDialog> {
                   if (n < 1 || n > 26) return const SizedBox();
                   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
                   final codes = List.generate(n, (i) => '${widget.stone.lotNo}${letters[i]}');
-                  return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)), child: Text('Will create: ${codes.join(', ')}', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.primary)));
+                  return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)), child: Text('Will create: ${codes.join(', ')}', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.accent)));
                 },
               ),
               const SizedBox(height: 24),
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 const SizedBox(width: 8),
-                FilledButton(onPressed: _splitting ? null : _split, child: _splitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Split Lot')),
+                FilledButton(
+                  onPressed: _splitting ? null : _split,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _brightActionYellow,
+                    foregroundColor: const Color(0xFF1A1A1A),
+                  ),
+                  child: _splitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        )
+                      : const Text('Split Lot'),
+                ),
               ]),
             ],
           ),
@@ -804,3 +540,5 @@ class _SplitLotDialogState extends State<_SplitLotDialog> {
     );
   }
 }
+
+

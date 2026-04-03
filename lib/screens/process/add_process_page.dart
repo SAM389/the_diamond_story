@@ -19,6 +19,8 @@ class AddProcessPage extends StatefulWidget {
 }
 
 class _AddProcessPageState extends State<AddProcessPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
   final _formKey = GlobalKey<FormState>();
   int? _selectedDiamondId;
   int? _selectedProcessTypeId;
@@ -438,41 +440,61 @@ class _AddProcessPageState extends State<AddProcessPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null ? 'Add Process' : 'Edit Process'),
-        backgroundColor: AppTheme.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFFFFF),
+        foregroundColor: AppTheme.accent,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Consumer3<InventoryProvider, ProcessProvider, LedgerProvider>(
-          builder: (context, invProvider, procProvider, ledgerProvider, child) {
-            final availableDiamonds = invProvider.diamonds
-                .where((d) => d.status != 'sold')
-                .toList();
-            final workers = ledgerProvider.parties
-                .where((party) => party.type == 'worker')
-                .toList();
-            final selectedDiamondLabel = _selectedDiamondLabel(availableDiamonds);
-            final selectedProcessTypeLabel = _selectedProcessTypeLabel(procProvider);
-            final selectedWorkerLabel = _selectedWorkerLabel(workers);
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFF8FAFC),
+              Color(0xFFFFFFFF),
+              Color(0xFFF8FAFC),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Consumer3<InventoryProvider, ProcessProvider, LedgerProvider>(
+            builder: (context, invProvider, procProvider, ledgerProvider, child) {
+              final availableDiamonds = invProvider.diamonds
+                  .where((d) => d.status != 'sold')
+                  .toList();
+              final workers = ledgerProvider.parties
+                  .where((party) => party.type == 'worker')
+                  .toList();
+              final selectedDiamondLabel = _selectedDiamondLabel(availableDiamonds);
+              final selectedProcessTypeLabel = _selectedProcessTypeLabel(procProvider);
+              final selectedWorkerLabel = _selectedWorkerLabel(workers);
 
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.existing == null ? 'Add New Process' : 'Edit Process',
-                          style: GoogleFonts.inter(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFFFF),
+                      borderRadius: BorderRadius.circular(24),
+                      border:
+                        Border.all(color: AppTheme.borderSubtle, width: 1.2),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.existing == null ? 'Add New Process' : 'Edit Process',
+                              style: GoogleFonts.inter(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -636,25 +658,9 @@ class _AddProcessPageState extends State<AddProcessPage> {
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade50,
-                              border: Border.all(color: Colors.red.shade300),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    _error!,
-                                    style: TextStyle(color: Colors.red.shade700, fontSize: 13),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          Text(
+                            _error!,
+                            style: const TextStyle(color: Colors.redAccent, fontSize: 12),
                           ),
                         ],
                         const SizedBox(height: 24),
@@ -668,22 +674,30 @@ class _AddProcessPageState extends State<AddProcessPage> {
                             const SizedBox(width: 12),
                             FilledButton(
                               onPressed: _saving ? null : _save,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _brightActionYellow,
+                                foregroundColor: const Color(0xFF1A1A1A),
+                              ),
                               child: _saving
-                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                                   : Text(widget.existing == null ? 'Add Process' : 'Save Changes'),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
+
+

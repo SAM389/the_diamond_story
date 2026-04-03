@@ -56,11 +56,14 @@ class RoughRepository {
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-  /// Auto-generate the next lot number
+  /// Auto-generate the next lot number based on the highest existing lot number.
+  /// Uses MAX instead of COUNT to avoid collisions after any deletions.
   Future<String> nextLotNo() async {
     final db = await _db.database;
-    final result = await db.rawQuery('SELECT COUNT(*) as cnt FROM rough_stones');
-    final cnt = (result.first['cnt'] as int?) ?? 0;
-    return 'LOT-${(cnt + 1).toString().padLeft(3, '0')}';
+    final result = await db.rawQuery(
+      "SELECT MAX(CAST(REPLACE(lot_no, 'LOT-', '') AS INTEGER)) as max_num FROM rough_stones",
+    );
+    final maxNum = (result.first['max_num'] as int?) ?? 0;
+    return 'LOT-${(maxNum + 1).toString().padLeft(3, '0')}';
   }
 }

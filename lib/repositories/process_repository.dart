@@ -175,6 +175,12 @@ class ProcessRepository {
     return result.first['cnt'] as int;
   }
 
+  Future<double> totalFees() async {
+    final db = await _db.database;
+    final result = await db.rawQuery('SELECT SUM(fee) as total FROM processes');
+    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
   /// Returns [{name: String, count: int}] for pending processes grouped by process type.
   Future<List<Map<String, dynamic>>> countByType() async {
     final db = await _db.database;

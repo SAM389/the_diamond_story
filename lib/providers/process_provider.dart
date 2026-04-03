@@ -120,6 +120,8 @@ class ProcessProvider extends ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> getStageBreakdown() => _repo.countByType();
 
+  Future<double> getTotalProcessFees() => _repo.totalFees();
+
   Future<List<Process>> getRecentActivity(int limit) => _repo.getRecent(limit);
 
   Future<List<Process>> getOverdueProcesses() => _repo.getOverdue();

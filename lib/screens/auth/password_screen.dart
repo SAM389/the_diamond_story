@@ -117,9 +117,9 @@ class _PasswordScreenState extends State<PasswordScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF0F172A), // Deep Slate Custom
-              Color(0xFF1E293B),
-              Color(0xFF334155),
+              Color(0xFFFFFFFF), // Deep Slate Custom
+              Color(0xFFF1F5F9),
+              Color(0xFFF8FAFC),
             ],
           ),
         ),
@@ -142,11 +142,15 @@ class _PasswordScreenState extends State<PasswordScreen>
                 margin: const EdgeInsets.all(24),
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFFFFFFF),
                   borderRadius: BorderRadius.circular(AppTheme.dialogRadius),
-                  boxShadow: const [
+                  border: Border.all(
+                    color: AppTheme.borderSubtle,
+                    width: 1.2,
+                  ),
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x40000000),
+                      color: Colors.black.withValues(alpha: 0.35),
                       blurRadius: 32,
                       offset: Offset(0, 12),
                     ),
@@ -162,12 +166,12 @@ class _PasswordScreenState extends State<PasswordScreen>
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.08),
+                          color: AppTheme.accent.withValues(alpha: 0.18),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.diamond_rounded,
-                          color: AppTheme.primary,
+                          color: AppTheme.accent,
                           size: 32,
                         ),
                       ),
@@ -283,11 +287,13 @@ class _PasswordScreenState extends State<PasswordScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: Colors.redAccent.withValues(alpha: 0.15),
                           borderRadius:
                               BorderRadius.circular(AppTheme.buttonRadius),
-                          border:
-                              Border.all(color: Colors.red.shade200, width: 1),
+                          border: Border.all(
+                            color: Colors.redAccent.withValues(alpha: 0.45),
+                            width: 1,
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -299,7 +305,7 @@ class _PasswordScreenState extends State<PasswordScreen>
                                 _error!,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: Colors.red.shade700,
+                                  color: Colors.redAccent,
                                 ),
                               ),
                             ),
@@ -331,3 +337,5 @@ class _PasswordScreenState extends State<PasswordScreen>
     );
   }
 }
+
+

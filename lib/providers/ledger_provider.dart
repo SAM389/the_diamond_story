@@ -92,29 +92,15 @@ class LedgerProvider extends ChangeNotifier {
 
   // --- Purchases ---
   Future<bool> addPurchase(Purchase purchase) async {
-    try {
-      await _purchaseRepo.insert(purchase);
-      _purchases = await _purchaseRepo.getAll();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
+    _error = 'Purchases are auto-generated from Rough Stones. Please add a Rough Stone instead.';
+    notifyListeners();
+    return false;
   }
 
   Future<bool> deletePurchase(int id) async {
-    try {
-      await _purchaseRepo.delete(id);
-      _purchases = await _purchaseRepo.getAll();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
+    _error = 'Purchase entries are managed from Rough Stones and cannot be deleted here.';
+    notifyListeners();
+    return false;
   }
 
   // --- Sales ---
@@ -234,4 +220,7 @@ class LedgerProvider extends ChangeNotifier {
 
   Future<List<Payment>> getRecentPayments(int limit) =>
       _paymentRepo.getRecentCompleted(limit);
+
+    Future<List<Map<String, dynamic>>> getMonthlySales(int months) =>
+      _saleRepo.monthlySales(months);
 }

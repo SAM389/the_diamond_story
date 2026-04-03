@@ -12,14 +12,28 @@ class PurchaseRepository {
       FROM purchases p
       LEFT JOIN parties pa ON pa.id = p.party_id
       LEFT JOIN rough_stones rs ON rs.id = p.lot_id
+      WHERE p.auto_generated = 1 AND p.auto_source = ?
+      ORDER BY p.created_at DESC
+    ''', [roughStoneAutoSource]);
+    return maps.map(Purchase.fromMap).toList();
+  }
+
+  Future<List<Purchase>> getAllRaw() async {
+    final db = await _db.database;
+    final maps = await db.rawQuery('''
+      SELECT p.*, pa.name as party_name, rs.lot_no
+      FROM purchases p
+      LEFT JOIN parties pa ON pa.id = p.party_id
+      LEFT JOIN rough_stones rs ON rs.id = p.lot_id
       ORDER BY p.created_at DESC
     ''');
     return maps.map(Purchase.fromMap).toList();
   }
 
   Future<int> insert(Purchase purchase) async {
-    final db = await _db.database;
-    return db.insert('purchases', purchase.toMap());
+    throw UnsupportedError(
+      'Manual purchase creation is disabled. Purchases are auto-managed from rough stones.',
+    );
   }
 
   Future<int> upsertAutoForRoughStone({
@@ -63,8 +77,9 @@ class PurchaseRepository {
   }
 
   Future<int> delete(int id) async {
-    final db = await _db.database;
-    return db.delete('purchases', where: 'id = ?', whereArgs: [id]);
+    throw UnsupportedError(
+      'Manual purchase deletion is disabled. Delete the related rough stone instead.',
+    );
   }
 
   Future<int> deleteAutoForRoughStoneByLotId(int lotId) async {

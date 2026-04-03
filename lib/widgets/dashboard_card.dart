@@ -232,3 +232,4 @@ class _TrendChip extends StatelessWidget {
     );
   }
 }
+

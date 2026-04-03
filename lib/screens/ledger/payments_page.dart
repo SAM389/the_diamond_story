@@ -16,6 +16,15 @@ class PaymentsPage extends StatefulWidget {
 }
 
 class _PaymentsPageState extends State<PaymentsPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
@@ -35,9 +44,21 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
           child: PageHeader(
@@ -63,6 +84,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 FilledButton.icon(
                   icon: const Icon(Icons.add),
                   label: const Text('Add Payment'),
+                  style: _brightActionButtonStyle(),
                   onPressed: () => showDialog(
                     context: context,
                     builder: (_) => const _PaymentDialog(),
@@ -123,7 +145,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -143,14 +166,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
           icon: Icons.account_balance_wallet_outlined,
           label: 'Total Entries',
           value: payments.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
           icon: Icons.call_made_outlined,
           label: 'Paid',
           value: AppHelpers.formatCurrency(paidAmount),
-          color: const Color(0xFFE65100),
+          color: const Color(0xFFF87171),
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -173,10 +196,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
   Widget _buildTable(List<Payment> payments) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -184,8 +207,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(
                 children: [
                   _hCell('Party', flex: 3),
@@ -202,12 +225,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
               child: ListView.separated(
                 itemCount: payments.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final p = payments[i];
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(
                       children: [
                         _dCell(
@@ -233,7 +258,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         ),
                         _dCell(
                           flex: 2,
-                          child: StatusChip(status: p.type),
+                          child: _paymentTypeChip(p.type),
                         ),
                         _dCell(
                           flex: 2,
@@ -252,7 +277,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         ),
                         _dCell(
                           flex: 2,
-                          child: StatusChip(status: p.status),
+                          child: _paymentStatusChip(p.status),
                         ),
                         _dCell(
                           flex: 2,
@@ -312,6 +337,37 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
   }
 
+  Widget _paymentTypeChip(String type) {
+    final normalized = type.toLowerCase();
+    final (bg, fg) = switch (normalized) {
+      'paid' => (const Color(0xFFFFEDD5), const Color(0xFFC2410C)),
+      'received' => (const Color(0xFFDDF8E8), const Color(0xFF166534)),
+      _ => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
+    };
+
+    return StatusChip(
+      status: normalized,
+      backgroundColor: bg,
+      textColor: fg,
+    );
+  }
+
+  Widget _paymentStatusChip(String status) {
+    final normalized = status.toLowerCase();
+    final (bg, fg) = switch (normalized) {
+      'pending' => (const Color(0xFFFFF4D6), const Color(0xFFB45309)),
+      'completed' => (const Color(0xFFDCEAFE), const Color(0xFF1D4ED8)),
+      'failed' => (const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
+      _ => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
+    };
+
+    return StatusChip(
+      status: normalized,
+      backgroundColor: bg,
+      textColor: fg,
+    );
+  }
+
   Widget _hCell(String text, {required int flex}) => Expanded(
         flex: flex,
         child: Padding(
@@ -319,10 +375,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
           child: Text(
             text,
             style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+              color: AppTheme.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
         ),
@@ -375,10 +431,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -672,16 +728,28 @@ class _PaymentDialogState extends State<_PaymentDialog> {
     final ledger = context.watch<LedgerProvider>();
     final selectedPartyName = _selectedPartyName(ledger.parties);
 
-    return AlertDialog(
-      title: const Text('Add Payment'),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: SizedBox(
         width: 400,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Add Payment',
+                    style: GoogleFonts.inter(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 InkWell(
                   onTap: ledger.parties.isEmpty
                       ? null
@@ -709,7 +777,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _amountCtrl,
-                  decoration: const InputDecoration(labelText: 'Amount (?) *', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Amount (Rs) *', border: OutlineInputBorder()),
                   keyboardType: TextInputType.number,
                   validator: (v) => (v == null || v.isEmpty) ? 'Amount is required' : null,
                 ),
@@ -770,20 +838,32 @@ class _PaymentDialogState extends State<_PaymentDialog> {
                   decoration: const InputDecoration(labelText: 'Notes', border: OutlineInputBorder()),
                   maxLines: 2,
                 ),
-              ],
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 239, 218, 24),
+                        foregroundColor: const Color(0xFF1A1A1A),
+                      ),
+                      child: _saving
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Save'),
+                    ),
+                  ],
+                ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
-        ),
-      ],
     );
   }
 }
+
+

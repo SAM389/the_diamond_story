@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../core/utils/app_theme.dart';
 import '../../core/utils/helpers.dart';
 import '../../models/purchase.dart';
+import '../../models/rough_stone.dart';
 import '../../providers/ledger_provider.dart';
 import '../../providers/inventory_provider.dart';
 import '../../widgets/data_table_widget.dart';
+import '../../widgets/rough_stone_dialog.dart';
 
 class PurchasePage extends StatefulWidget {
   const PurchasePage({super.key});
@@ -16,8 +18,41 @@ class PurchasePage extends StatefulWidget {
 }
 
 class _PurchasePageState extends State<PurchasePage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
+
+  Future<void> _openAddRoughStoneDialog() async {
+    final added = await showDialog<bool>(
+      context: context,
+      builder: (_) => const RoughStoneDialog(),
+    );
+    if (added == true && mounted) {
+      await context.read<InventoryProvider>().loadRoughStones();
+      if (!mounted) return;
+      await context.read<LedgerProvider>().loadAll();
+    }
+  }
+
+  Future<void> _openEditRoughStoneDialog(RoughStone stone) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => RoughStoneDialog(existing: stone),
+    );
+    if (updated == true && mounted) {
+      await context.read<InventoryProvider>().loadRoughStones();
+      if (!mounted) return;
+      await context.read<LedgerProvider>().loadAll();
+    }
+  }
 
   @override
   void initState() {
@@ -36,14 +71,26 @@ class _PurchasePageState extends State<PurchasePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
           child: PageHeader(
             title: 'Purchases',
-            subtitle: 'Record rough stone purchases',
+            subtitle: 'Linked purchases from rough stone entries',
             action: Row(
               children: [
                 SizedBox(
@@ -63,9 +110,9 @@ class _PurchasePageState extends State<PurchasePage> {
                 const SizedBox(width: 12),
                 FilledButton.icon(
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Purchase'),
-                  onPressed: () =>
-                      showDialog(context: context, builder: (_) => const _PurchaseDialog()),
+                  label: const Text('Add Rough Stone'),
+                  style: _brightActionButtonStyle(),
+                  onPressed: _openAddRoughStoneDialog,
                 ),
               ],
             ),
@@ -100,10 +147,11 @@ class _PurchasePageState extends State<PurchasePage> {
               }).toList();
 
               if (provider.purchases.isEmpty) {
-                return const EmptyState(
+                return EmptyState(
                   message: 'No purchases yet.',
                   icon: Icons.shopping_bag_outlined,
-                  ctaLabel: 'Record your first purchase',
+                  ctaLabel: 'Add Rough Stone',
+                  onCta: _openAddRoughStoneDialog,
                 );
               }
 
@@ -133,7 +181,8 @@ class _PurchasePageState extends State<PurchasePage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -153,7 +202,7 @@ class _PurchasePageState extends State<PurchasePage> {
           icon: Icons.shopping_bag_outlined,
           label: 'Total Purchases',
           value: purchases.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -180,18 +229,18 @@ class _PurchasePageState extends State<PurchasePage> {
     );
   }
 
-  Widget _buildTable(List<Purchase> purchases, List<dynamic> roughStones) {
+  Widget _buildTable(List<Purchase> purchases, List<RoughStone> roughStones) {
     final titleByLotNo = <String, String>{};
     for (final stone in roughStones) {
-      titleByLotNo[stone.lotNo as String] = stone.title as String;
+      titleByLotNo[stone.lotNo] = stone.title;
     }
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -199,8 +248,8 @@ class _PurchasePageState extends State<PurchasePage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(
                 children: [
                   _hCell('Party', flex: 3),
@@ -209,7 +258,7 @@ class _PurchasePageState extends State<PurchasePage> {
                   _hCell('Amount (Rs)', flex: 2),
                   _hCell('Date', flex: 2),
                   _hCell('Notes', flex: 3),
-                  _hCell('Actions', flex: 1),
+                  _hCell('Action', flex: 2),
                 ],
               ),
             ),
@@ -217,15 +266,26 @@ class _PurchasePageState extends State<PurchasePage> {
               child: ListView.separated(
                 itemCount: purchases.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final p = purchases[i];
+                  RoughStone? linkedStone;
+                  if (p.lotNo != null && p.lotNo!.isNotEmpty) {
+                    for (final stone in roughStones) {
+                      if (stone.lotNo == p.lotNo) {
+                        linkedStone = stone;
+                        break;
+                      }
+                    }
+                  }
                   final lotTitle = (p.lotNo == null || p.lotNo!.isEmpty)
                       ? '-'
                       : (titleByLotNo[p.lotNo!] ?? '-');
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(
                       children: [
                         _dCell(
@@ -244,13 +304,13 @@ class _PurchasePageState extends State<PurchasePage> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.07),
+                              color: AppTheme.accent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               p.lotNo ?? '-',
                               style: GoogleFonts.inter(
-                                color: AppTheme.primary,
+                                color: AppTheme.accent,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
                               ),
@@ -298,21 +358,27 @@ class _PurchasePageState extends State<PurchasePage> {
                           ),
                         ),
                         _dCell(
-                          flex: 1,
-                          child: _actionBtn(
-                            icon: Icons.delete_outline,
-                            color: Colors.red.shade600,
-                            tooltip: 'Delete purchase',
-                            onTap: () async {
-                              final ok = await showDeleteConfirmDialog(
-                                  context, 'purchase entry');
-                              if (ok && mounted) {
-                                await context.read<LedgerProvider>().deletePurchase(p.id!);
-                                if (mounted) {
-                                  showSuccessSnack(context, 'Purchase deleted');
-                                }
-                              }
-                            },
+                          flex: 2,
+                          child: Tooltip(
+                            message: linkedStone == null
+                                ? 'No linked rough stone to edit'
+                                : 'Edit rough stone',
+                            child: InkWell(
+                              onTap: linkedStone == null
+                                  ? null
+                                  : () => _openEditRoughStoneDialog(linkedStone!),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                  color: linkedStone == null
+                                      ? AppTheme.textMuted
+                                      : AppTheme.accent,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -333,11 +399,14 @@ class _PurchasePageState extends State<PurchasePage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+              color: AppTheme.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
         ),
@@ -350,25 +419,6 @@ class _PurchasePageState extends State<PurchasePage> {
           child: child,
         ),
       );
-
-  Widget _actionBtn({
-    required IconData icon,
-    required Color color,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 18, color: color),
-        ),
-      ),
-    );
-  }
 }
 
 class _StatCard extends StatelessWidget {
@@ -390,10 +440,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -439,239 +489,4 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _PurchaseDialog extends StatefulWidget {
-  const _PurchaseDialog();
 
-  @override
-  State<_PurchaseDialog> createState() => _PurchaseDialogState();
-}
-
-class _PurchaseDialogState extends State<_PurchaseDialog> {
-  final _formKey = GlobalKey<FormState>();
-  int? _partyId;
-  int? _lotId;
-  final _amountCtrl = TextEditingController();
-  final _dateCtrl = TextEditingController();
-  final _notesCtrl = TextEditingController();
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _dateCtrl.text = AppHelpers.today();
-  }
-
-  @override
-  void dispose() {
-    _amountCtrl.dispose();
-    _dateCtrl.dispose();
-    _notesCtrl.dispose();
-    super.dispose();
-  }
-
-  String? _selectedSupplierName(List<dynamic> suppliers) {
-    if (_partyId == null) return null;
-    for (final supplier in suppliers) {
-      if (supplier.id == _partyId) return supplier.name as String;
-    }
-    return null;
-  }
-
-  Future<void> _openSupplierPicker(List<dynamic> suppliers) async {
-    if (suppliers.isEmpty) return;
-
-    final selectedId = await showDialog<int>(
-      context: context,
-      builder: (context) {
-        final searchCtrl = TextEditingController();
-        String query = '';
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final filtered = suppliers.where((supplier) {
-              final name = (supplier.name as String).toLowerCase();
-              return name.contains(query.trim().toLowerCase());
-            }).toList();
-
-            return AlertDialog(
-              title: const Text('Select Supplier'),
-              content: SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: searchCtrl,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Search supplier',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) => setDialogState(() => query = value),
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: filtered.isEmpty
-                          ? const Center(child: Text('No supplier matches your search.'))
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, _) => const Divider(height: 1),
-                              itemBuilder: (_, index) {
-                                final supplier = filtered[index];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(supplier.name as String),
-                                  trailing: supplier.id == _partyId
-                                      ? const Icon(Icons.check, size: 18)
-                                      : null,
-                                  onTap: () => Navigator.pop(context, supplier.id as int?),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (!mounted || selectedId == null) return;
-    setState(() => _partyId = selectedId);
-  }
-
-  Future<void> _pickDate() async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: AppHelpers.parseDate(_dateCtrl.text),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (!mounted || selected == null) return;
-    setState(() => _dateCtrl.text = AppHelpers.formatDate(selected));
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _partyId == null) {
-      if (_partyId == null) {
-        showErrorSnack(context, 'Please select a supplier');
-      }
-      return;
-    }
-
-    setState(() => _saving = true);
-
-    final purchase = Purchase(
-      partyId: _partyId!,
-      lotId: _lotId,
-      amount: double.tryParse(_amountCtrl.text) ?? 0,
-      date: _dateCtrl.text.trim(),
-      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      createdAt: DateTime.now().toIso8601String(),
-    );
-
-    final ok = await context.read<LedgerProvider>().addPurchase(purchase);
-    
-    if (mounted) {
-      Navigator.pop(context);
-      if (ok) {
-        showSuccessSnack(context, 'Purchase recorded');
-      } else {
-        showErrorSnack(context, 'Error saving purchase');
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ledger = context.watch<LedgerProvider>();
-    final inventory = context.watch<InventoryProvider>();
-    final suppliers = ledger.parties.where((p) => p.type == 'supplier').toList();
-    final selectedSupplierName = _selectedSupplierName(suppliers);
-
-    return AlertDialog(
-      title: const Text('Add Purchase'),
-      content: SizedBox(
-        width: 400,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InkWell(
-                onTap: suppliers.isEmpty ? null : () => _openSupplierPicker(suppliers),
-                borderRadius: BorderRadius.circular(4),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Supplier *',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.search),
-                  ),
-                  child: Text(
-                    selectedSupplierName ??
-                        (suppliers.isEmpty ? 'No suppliers found' : 'Search and select supplier'),
-                    style: TextStyle(
-                      color: selectedSupplierName == null
-                          ? AppTheme.textSecondary
-                          : AppTheme.textPrimary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: _lotId,
-                decoration: const InputDecoration(labelText: 'Rough Stone Lot (optional)', border: OutlineInputBorder()),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('� None �')),
-                  ...inventory.roughStones.map((s) => DropdownMenuItem(value: s.id, child: Text(s.lotNo))),
-                ],
-                onChanged: (v) => setState(() => _lotId = v),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _amountCtrl,
-                decoration: const InputDecoration(labelText: 'Amount (?) *', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-                validator: (v) => (v == null || v.isEmpty) ? 'Amount is required' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _dateCtrl,
-                readOnly: true,
-                onTap: _pickDate,
-                decoration: const InputDecoration(labelText: 'Date (yyyy-MM-dd) *', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today_outlined)),
-                validator: (v) => (v == null || v.isEmpty) ? 'Date is required' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _notesCtrl,
-                decoration: const InputDecoration(labelText: 'Notes', border: OutlineInputBorder()),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
-        ),
-      ],
-    );
-  }
-}

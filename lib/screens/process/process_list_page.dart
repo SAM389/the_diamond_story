@@ -17,6 +17,15 @@ class ProcessListPage extends StatefulWidget {
 }
 
 class _ProcessListPageState extends State<ProcessListPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
@@ -41,54 +50,67 @@ class _ProcessListPageState extends State<ProcessListPage> {
     final dateCtrl = TextEditingController(text: AppHelpers.today());
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Complete Process'),
-        content: SizedBox(
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFFFFFFFF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: SizedBox(
           width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Mark "${process.processTypeName}" for ${process.diamondCode} as completed?',
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: dateCtrl,
-                readOnly: true,
-                onTap: () async {
-                  final selected = await showDatePicker(
-                    context: ctx,
-                    initialDate: AppHelpers.parseDate(dateCtrl.text),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (selected != null) {
-                    dateCtrl.text = AppHelpers.formatDate(selected);
-                  }
-                },
-                decoration: InputDecoration(
-                  labelText: 'Completion Date (yyyy-MM-dd)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixIcon: const Icon(Icons.calendar_today_outlined),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Complete Process',
+                  style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  'Mark "${process.processTypeName}" for ${process.diamondCode} as completed?',
+                  style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: dateCtrl,
+                  readOnly: true,
+                  onTap: () async {
+                    final selected = await showDatePicker(
+                      context: ctx,
+                      initialDate: AppHelpers.parseDate(dateCtrl.text),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (selected != null) {
+                      dateCtrl.text = AppHelpers.formatDate(selected);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Completion Date (yyyy-MM-dd)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: const Icon(Icons.calendar_today_outlined),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Complete'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Complete'),
-          ),
-        ],
       ),
     );
     if (result == true && mounted) {
@@ -105,9 +127,21 @@ class _ProcessListPageState extends State<ProcessListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
           child: PageHeader(
@@ -133,6 +167,7 @@ class _ProcessListPageState extends State<ProcessListPage> {
                 FilledButton.icon(
                   icon: const Icon(Icons.add),
                   label: const Text('Add Process'),
+                  style: _brightActionButtonStyle(),
                   onPressed: () async {
                     final added = await Navigator.push<bool>(
                       context,
@@ -203,7 +238,8 @@ class _ProcessListPageState extends State<ProcessListPage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -218,7 +254,7 @@ class _ProcessListPageState extends State<ProcessListPage> {
           icon: Icons.precision_manufacturing_outlined,
           label: 'Total Processes',
           value: processes.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -248,10 +284,10 @@ class _ProcessListPageState extends State<ProcessListPage> {
   Widget _buildTable(List<Process> processes) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -259,8 +295,8 @@ class _ProcessListPageState extends State<ProcessListPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(
                 children: [
                   _hCell('Diamond', flex: 2),
@@ -278,12 +314,14 @@ class _ProcessListPageState extends State<ProcessListPage> {
               child: ListView.separated(
                 itemCount: processes.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final p = processes[i];
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(
                       children: [
                         _dCell(
@@ -292,7 +330,7 @@ class _ProcessListPageState extends State<ProcessListPage> {
                             p.diamondCode ?? '',
                             style: GoogleFonts.inter(
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.primary,
+                              color: AppTheme.accent,
                               fontSize: 13,
                             ),
                           ),
@@ -340,7 +378,7 @@ class _ProcessListPageState extends State<ProcessListPage> {
                         ),
                         _dCell(
                           flex: 2,
-                          child: StatusChip(status: p.status),
+                          child: _processStatusChip(p.status),
                         ),
                         _dCell(
                           flex: 2,
@@ -356,7 +394,7 @@ class _ProcessListPageState extends State<ProcessListPage> {
                                 ),
                               _actionBtn(
                                 icon: Icons.edit_outlined,
-                                color: AppTheme.primary,
+                                color: AppTheme.accent,
                                 tooltip: 'Edit process',
                                 onTap: () async {
                                   final updated = await Navigator.push<bool>(
@@ -406,6 +444,24 @@ class _ProcessListPageState extends State<ProcessListPage> {
     );
   }
 
+  Widget _processStatusChip(String status) {
+    final normalized = status.toLowerCase();
+    final (bg, fg) = switch (normalized) {
+      'raw' => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
+      'in_process' => (const Color(0xFFFFF4D6), const Color(0xFFB45309)),
+      'completed' => (const Color(0xFFDDF8E8), const Color(0xFF166534)),
+      'sold' => (const Color(0xFFDCEAFE), const Color(0xFF1D4ED8)),
+      'pending' => (const Color(0xFFFFEDD5), const Color(0xFFC2410C)),
+      _ => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
+    };
+
+    return StatusChip(
+      status: normalized,
+      backgroundColor: bg,
+      textColor: fg,
+    );
+  }
+
   Widget _hCell(String text, {required int flex}) => Expanded(
         flex: flex,
         child: Padding(
@@ -413,10 +469,10 @@ class _ProcessListPageState extends State<ProcessListPage> {
           child: Text(
             text,
             style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+              color: AppTheme.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
         ),
@@ -469,10 +525,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -517,3 +573,5 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+
+

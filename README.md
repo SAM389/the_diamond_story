@@ -691,3 +691,43 @@ If you want, I can also give you **3 extremely important things next**:
 3️⃣ **Advanced Diamond Manufacturing Workflow used in Surat factories** (very powerful system)
 
 These will make your project **10x more professional.**
+
+---
+
+# Windows Setup Installer (.exe)
+
+This project now includes a Windows installer pipeline using Inno Setup.
+
+## Prerequisites
+
+1. Flutter SDK installed and configured for Windows desktop.
+2. Inno Setup 6 installed (ISCC compiler).
+
+## Files
+
+- `windows/installer/the_diamond_story.iss` - Inno Setup definition.
+- `tool/build_installer.ps1` - One-command release + installer build script.
+
+## Build Installer
+
+Run from project root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\build_installer.ps1
+```
+
+Optional custom metadata:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\build_installer.ps1 -Publisher "TheDiamondStorySetup" -AppName "The Diamond Story"
+```
+
+## Output
+
+The generated setup executable is placed in:
+
+`dist/installer`
+
+Example file name:
+
+`TheDiamondStorySetup-1.0.0.exe`

@@ -16,6 +16,15 @@ class SalesPage extends StatefulWidget {
 }
 
 class _SalesPageState extends State<SalesPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
@@ -36,9 +45,21 @@ class _SalesPageState extends State<SalesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
           child: PageHeader(
@@ -64,8 +85,12 @@ class _SalesPageState extends State<SalesPage> {
                 FilledButton.icon(
                   icon: const Icon(Icons.add),
                   label: const Text('Add Sale'),
+                  style: _brightActionButtonStyle(),
                   onPressed: () async {
                     await context.read<InventoryProvider>().loadDiamonds();
+                    if (!mounted) {
+                      return;
+                    }
                     await showDialog<bool>(
                       context: context,
                       builder: (_) => const _SaleDialog(),
@@ -125,7 +150,8 @@ class _SalesPageState extends State<SalesPage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -146,7 +172,7 @@ class _SalesPageState extends State<SalesPage> {
           icon: Icons.sell_outlined,
           label: 'Total Sales',
           value: sales.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -176,10 +202,10 @@ class _SalesPageState extends State<SalesPage> {
   Widget _buildTable(List<Sale> sales) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -187,8 +213,8 @@ class _SalesPageState extends State<SalesPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(
                 children: [
                   _hCell('Customer', flex: 3),
@@ -204,12 +230,14 @@ class _SalesPageState extends State<SalesPage> {
               child: ListView.separated(
                 itemCount: sales.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final s = sales[i];
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(
                       children: [
                         _dCell(
@@ -228,13 +256,13 @@ class _SalesPageState extends State<SalesPage> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.07),
+                              color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               s.diamondCode ?? '-',
                               style: GoogleFonts.inter(
-                                color: AppTheme.primary,
+                                color: const Color(0xFF38BDF8),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
                               ),
@@ -316,10 +344,10 @@ class _SalesPageState extends State<SalesPage> {
           child: Text(
             text,
             style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+              color: AppTheme.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
         ),
@@ -372,10 +400,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -587,15 +615,27 @@ class _SaleDialogState extends State<_SaleDialog> {
     final completedDiamonds = inventory.diamonds.where((d) => d.status == 'completed').toList();
     final selectedCustomerName = _selectedCustomerName(customers);
 
-    return AlertDialog(
-      title: const Text('Add Sale'),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: SizedBox(
         width: 400,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Add Sale',
+                  style: GoogleFonts.inter(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
               InkWell(
                 onTap: customers.isEmpty ? null : () => _openCustomerPicker(customers),
                 borderRadius: BorderRadius.circular(4),
@@ -621,7 +661,7 @@ class _SaleDialogState extends State<_SaleDialog> {
                 initialValue: _diamondId,
                 decoration: const InputDecoration(labelText: 'Diamond (optional)', border: OutlineInputBorder()),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('� None �')),
+                  const DropdownMenuItem(value: null, child: Text('None')),
                   ...completedDiamonds.map((d) => DropdownMenuItem(value: d.id, child: Text('${d.diamondCode} (${d.weight} ct)'))),
                 ],
                 onChanged: (v) => setState(() => _diamondId = v),
@@ -629,7 +669,7 @@ class _SaleDialogState extends State<_SaleDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _priceCtrl,
-                decoration: const InputDecoration(labelText: 'Price (?) *', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Price (Rs) *', border: OutlineInputBorder()),
                 keyboardType: TextInputType.number,
                 validator: (v) => (v == null || v.isEmpty) ? 'Price is required' : null,
               ),
@@ -647,19 +687,31 @@ class _SaleDialogState extends State<_SaleDialog> {
                 decoration: const InputDecoration(labelText: 'Notes', border: OutlineInputBorder()),
                 maxLines: 2,
               ),
-            ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 239, 218, 24),
+                      foregroundColor: const Color(0xFF1A1A1A),
+                    ),
+                    child: _saving
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Save'),
+                  ),
+                ],
+              ),
+              ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
-        ),
-      ],
     );
   }
 }
+
+

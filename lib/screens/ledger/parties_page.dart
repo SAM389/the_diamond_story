@@ -14,6 +14,15 @@ class PartiesPage extends StatefulWidget {
 }
 
 class _PartiesPageState extends State<PartiesPage> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: _brightActionYellow,
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
   String _filterType = 'all';
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -38,9 +47,21 @@ class _PartiesPageState extends State<PartiesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF8FAFC),
+            Color(0xFFFFFFFF),
+            Color(0xFFF8FAFC),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
           child: PageHeader(
@@ -71,6 +92,7 @@ class _PartiesPageState extends State<PartiesPage> {
                 FilledButton.icon(
                   icon: const Icon(Icons.add),
                   label: const Text('Add Party'),
+                  style: _brightActionButtonStyle(),
                   onPressed: () => _showDialog(),
                 ),
               ],
@@ -123,7 +145,8 @@ class _PartiesPageState extends State<PartiesPage> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -138,7 +161,7 @@ class _PartiesPageState extends State<PartiesPage> {
           icon: Icons.groups_outlined,
           label: 'Total Parties',
           value: filtered.length.toString(),
-          color: AppTheme.primary,
+          color: AppTheme.accent,
         ),
         const SizedBox(width: 16),
         _StatCard(
@@ -168,10 +191,10 @@ class _PartiesPageState extends State<PartiesPage> {
   Widget _buildTable(List<Party> parties) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -179,8 +202,8 @@ class _PartiesPageState extends State<PartiesPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 48,
-              color: AppTheme.primary,
+              height: 52,
+              color: Colors.black.withValues(alpha: 0.03),
               child: Row(
                 children: [
                   _hCell('Name', flex: 3),
@@ -195,12 +218,14 @@ class _PartiesPageState extends State<PartiesPage> {
               child: ListView.separated(
                 itemCount: parties.length,
                 separatorBuilder: (_, index) =>
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: AppTheme.borderSubtle),
                 itemBuilder: (_, i) {
                   final party = parties[i];
                   return Container(
                     height: 52,
-                    color: i.isEven ? Colors.white : const Color(0xFFFAFBFD),
+                    color: i.isEven
+                        ? Colors.transparent
+                        : Colors.black.withValues(alpha: 0.015),
                     child: Row(
                       children: [
                         _dCell(
@@ -244,7 +269,7 @@ class _PartiesPageState extends State<PartiesPage> {
                             children: [
                               _actionBtn(
                                 icon: Icons.edit_outlined,
-                                color: AppTheme.primary,
+                                color: AppTheme.accent,
                                 tooltip: 'Edit party',
                                 onTap: () => _showDialog(existing: party),
                               ),
@@ -287,10 +312,10 @@ class _PartiesPageState extends State<PartiesPage> {
           child: Text(
             text,
             style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+              color: AppTheme.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
         ),
@@ -336,9 +361,9 @@ class _TypeFilter extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppTheme.background,
+        color: Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(AppTheme.buttonRadius),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.borderSubtle),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -377,10 +402,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(12),
           boxShadow: AppTheme.cardShadow,
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
         ),
         child: Row(
           children: [
@@ -435,6 +460,8 @@ class _PartyDialog extends StatefulWidget {
 }
 
 class _PartyDialogState extends State<_PartyDialog> {
+  static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _name, _phone, _address;
   String _type = 'supplier';
@@ -580,9 +607,16 @@ class _PartyDialogState extends State<_PartyDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppTheme.borderSubtle, width: 1.2),
+          ),
+          child: Padding(
           padding: const EdgeInsets.all(28),
           child: Form(
             key: _formKey,
@@ -591,7 +625,7 @@ class _PartyDialogState extends State<_PartyDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.existing == null ? 'Add Party' : 'Edit Party',
-                    style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                  style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
                 const SizedBox(height: 24),
                 AppFormField(
                   label: 'Name',
@@ -643,8 +677,12 @@ class _PartyDialogState extends State<_PartyDialog> {
                     const SizedBox(width: 8),
                     FilledButton(
                       onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _brightActionYellow,
+                        foregroundColor: const Color(0xFF1A1A1A),
+                      ),
                       child: _saving
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Text('Save'),
                     ),
                   ],
@@ -653,7 +691,10 @@ class _PartyDialogState extends State<_PartyDialog> {
             ),
           ),
         ),
+        ),
       ),
     );
   }
 }
+
+

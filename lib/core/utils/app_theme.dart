@@ -3,20 +3,22 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // ── Brand colours ─────────────────────────────────────────────────────────
-  static const Color primary = Color(0xFF0F172A); // Deep Slate
-  static const Color accent = Color(0xFFD4AF37); // Metallic Gold
+  static const Color primary = Color(0xFF1E293B); // Deep Slate
+  static const Color accent = Color(0xFFB9851F); // Refined Gold
 
   // ── Surface / background ──────────────────────────────────────────────────
-  static const Color surface = Colors.white;
-  static const Color background = Color(0xFFF8FAFC);
-  static const Color cardColor = Colors.white;
-  static const Color divider = Color(0xFFE2E8F0);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color background = Color(0xFFF6F8FC);
+  static const Color cardColor = Color(0xFFFFFFFF);
+  static const Color divider = Color(0xFFD9E1EC);
   static const Color surfaceSoft = Color(0xFFF1F5F9);
+  static const Color borderSubtle = Color(0xFFE2E8F0);
 
   // ── Text ──────────────────────────────────────────────────────────────────
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textSecondary = Color(0xFF475569);
-  static const Color textMuted = Color(0xFF94A3B8);
+  static const Color textPrimary = Color(0xFF1A2433);
+  static const Color textSecondary = Color(0xFF4A5B72);
+  static const Color textMuted = Color(0xFF7A8AA1);
+  static const Color textOnAccent = Color(0xFF1A2433);
 
   // ── Semantic dashboard colours ───────────────────────────────────────────
   static const Color kpiInventory = Color(0xFF475569);
@@ -89,7 +91,7 @@ class AppTheme {
       labelLarge: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: textOnAccent,
           letterSpacing: 0.2),
       labelMedium: GoogleFonts.inter(
           fontSize: 12,
@@ -109,8 +111,8 @@ class AppTheme {
         primary: primary,
         secondary: accent,
         surface: surface,
-        onPrimary: Colors.white,
-        onSecondary: Colors.black,
+        onPrimary: Color(0xFFFFFFFF),
+        onSecondary: Color(0xFF1A2433),
         onSurface: textPrimary,
         outline: divider,
       ),
@@ -131,9 +133,9 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(dialogRadius)),
-        backgroundColor: Colors.white,
-        elevation: 24,
-        shadowColor: const Color(0x1A0F172A),
+        backgroundColor: cardColor,
+        elevation: 8,
+        shadowColor: const Color(0x140F172A),
         titleTextStyle: GoogleFonts.inter(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -143,19 +145,56 @@ class AppTheme {
             GoogleFonts.inter(fontSize: 15, color: textSecondary, height: 1.5),
       ),
 
+      // Date picker
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: cardColor,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: primary,
+        headerForegroundColor: Colors.white,
+        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return textOnAccent;
+          return textPrimary;
+        }),
+        dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return accent;
+          return Colors.transparent;
+        }),
+        todayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return textOnAccent;
+          return textPrimary;
+        }),
+        todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return accent;
+          return surfaceSoft;
+        }),
+        todayBorder: const BorderSide(color: accent, width: 1.2),
+        yearForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return textOnAccent;
+          return textPrimary;
+        }),
+        yearBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return accent;
+          return Colors.transparent;
+        }),
+        rangeSelectionBackgroundColor: accent.withValues(alpha: 0.24),
+        rangeSelectionOverlayColor:
+            WidgetStatePropertyAll(accent.withValues(alpha: 0.16)),
+        dividerColor: divider,
+      ),
+
       // Input fields
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF1F5F9), // Slate 100
+        fillColor: surfaceSoft,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(buttonRadius),
             borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(buttonRadius),
-            borderSide: const BorderSide(color: Colors.transparent, width: 1)),
+          borderSide: const BorderSide(color: borderSubtle, width: 1)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(buttonRadius),
-            borderSide: const BorderSide(color: primary, width: 2)),
+          borderSide: const BorderSide(color: accent, width: 2)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(buttonRadius),
             borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
@@ -173,8 +212,8 @@ class AppTheme {
       // Filled button
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
+          backgroundColor: accent,
+          foregroundColor: textOnAccent,
           minimumSize: const Size(double.minPositive, buttonHeight),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -188,8 +227,8 @@ class AppTheme {
       // Outlined button
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: primary,
-          side: const BorderSide(color: divider, width: 1.5),
+          foregroundColor: textPrimary,
+          side: const BorderSide(color: borderSubtle, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24),
           minimumSize: const Size(double.minPositive, buttonHeight),
           shape: RoundedRectangleBorder(
@@ -202,7 +241,7 @@ class AppTheme {
       // Text button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: primary,
+          foregroundColor: textPrimary,
           textStyle: GoogleFonts.inter(
               fontSize: 14, fontWeight: FontWeight.w500),
         ),
@@ -224,13 +263,14 @@ class AppTheme {
 
       // Popup menus
       popupMenuTheme: PopupMenuThemeData(
+          color: cardColor,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10))),
 
       // Tooltips
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: const Color(0xE6000000),
+          color: const Color(0xE61E293B),
           borderRadius: BorderRadius.circular(6),
         ),
         textStyle:
@@ -242,7 +282,7 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8)),
-        backgroundColor: const Color(0xFF1A1A2E),
+        backgroundColor: const Color(0xFF1E293B),
         contentTextStyle:
             GoogleFonts.inter(color: Colors.white, fontSize: 13),
       ),

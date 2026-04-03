@@ -93,4 +93,23 @@ class SaleRepository {
     final result = await db.rawQuery('SELECT COUNT(*) as cnt FROM sales');
     return result.first['cnt'] as int;
   }
+
+  Future<List<Map<String, dynamic>>> monthlySales(int months) async {
+    final db = await _db.database;
+    final rows = await db.rawQuery('''
+      SELECT strftime('%Y-%m', date) as month, SUM(price) as total
+      FROM sales
+      WHERE date >= date('now', 'start of month', ?)
+      GROUP BY strftime('%Y-%m', date)
+      ORDER BY month ASC
+    ''', ['-${months - 1} months']);
+    return rows
+        .map(
+          (row) => {
+            'month': row['month'] as String,
+            'total': (row['total'] as num?)?.toDouble() ?? 0.0,
+          },
+        )
+        .toList();
+  }
 }

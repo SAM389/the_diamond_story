@@ -1,15 +1,14 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/database/database_helper.dart';
 import '../../core/services/backup_service.dart';
 import '../../core/utils/app_theme.dart';
 import '../../core/utils/file_io.dart';
+import '../../core/utils/helpers.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/ledger_provider.dart';
 import '../../providers/process_provider.dart';
@@ -25,6 +24,15 @@ class BackupRestorePage extends StatefulWidget {
 class _BackupRestorePageState extends State<BackupRestorePage> {
   String? _message;
   bool _isError = false;
+
+  static const Color _brightActionYellow = Color(0xFFFFEB3B);
+
+  ButtonStyle _brightActionButtonStyle() {
+    return FilledButton.styleFrom(
+      backgroundColor: const Color.fromARGB(255, 239, 218, 24),
+      foregroundColor: const Color(0xFF1A1A1A),
+    );
+  }
 
   void _showMessage(String msg, {bool isError = false}) {
     setState(() {
@@ -78,17 +86,6 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       builder: (_) => _BackupDialog(
         onBackup: (password) async {
           try {
-            final passwordFileName = _passwordFileName();
-            final passwordSaved = await _saveBytesForUser(
-              bytes: Uint8List.fromList(utf8.encode(_passwordFileContent(password))),
-              fileName: passwordFileName,
-              extensions: const ['txt'],
-            );
-            if (!passwordSaved) {
-              _showMessage('Password download cancelled', isError: true);
-              return false;
-            }
-
             final csvZipBytes = await BackupService.exportToCsvZip();
             final csvFileName = BackupService.generateExportFileName();
             final csvSaved = await _saveBytesForUser(
@@ -97,11 +94,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
               extensions: const ['zip'],
             );
             if (!csvSaved) {
-              _showMessage('Password downloaded, CSV download cancelled', isError: true);
+              _showMessage('Backup download cancelled', isError: true);
               return false;
             }
 
-            _showMessage('Backup complete: password file and CSV backup downloaded');
+            _showMessage('Backup ZIP downloaded successfully');
             return true;
           } catch (e) {
             _showMessage('Backup failed: $e', isError: true);
@@ -191,198 +188,189 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     return true;
   }
 
-  String _passwordFileName() {
-    final stamp = DateTime.now()
-        .toIso8601String()
-        .substring(0, 19)
-        .replaceAll(':', '-')
-        .replaceAll('T', '_');
-    return 'backup_password_$stamp.txt';
-  }
-
-  String _passwordFileContent(String password) {
-    return [
-      'Diamond Story Backup Password',
-      'Created: ${DateTime.now().toIso8601String()}',
-      '',
-      'Password:',
-      password,
-      '',
-      'Keep this file safe. You may need it for encrypted backups.',
-    ].join('\n');
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PageHeader(
-            title: 'Backup & Restore',
-            subtitle: 'Manage your data backups',
-          ),
-          const SizedBox(height: 24),
-          // Message banner
-          if (_message != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: _isError ? Colors.red.shade50 : Colors.green.shade50,
-                border: Border.all(
-                  color: _isError ? Colors.red.shade300 : Colors.green.shade300,
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isError ? Icons.error_outline : Icons.check_circle_outline,
-                    color: _isError ? Colors.red.shade700 : Colors.green.shade700,
-                    size: 18,
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF8FAFC), Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PageHeader(
+              title: 'Data Vault',
+              subtitle: 'Manage your data backups',
+            ),
+            const SizedBox(height: 24),
+            if (_message != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _isError
+                      ? Colors.redAccent.withValues(alpha: 0.15)
+                      : Colors.tealAccent.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: _isError
+                        ? Colors.redAccent.withValues(alpha: 0.45)
+                        : Colors.tealAccent.withValues(alpha: 0.4),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _message!,
-                      style: TextStyle(
-                        color: _isError ? Colors.red.shade700 : Colors.green.shade700,
-                        fontSize: 13,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isError ? Icons.error_outline : Icons.check_circle_outline,
+                      color: _isError ? Colors.redAccent : Colors.tealAccent,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _message!,
+                        style: TextStyle(
+                          color: _isError ? Colors.redAccent : Colors.tealAccent,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: _clearMessage,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: _clearMessage,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          if (_message != null) const SizedBox(height: 20),
-          // Data Controls section
-          SectionLabel('Data Controls'),
-          const SizedBox(height: 12),
-          // CSV Export Card
-          AppCard(
-            accentColor: Colors.teal,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Export to CSV',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Download all data as CSV files',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.download),
-                    label: const Text('Export'),
-                    onPressed: _exportCsv,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          // Backup & Restore section
-          SectionLabel('Backup & Restore'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: AppCard(
-                  accentColor: AppTheme.primary,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
+            if (_message != null) const SizedBox(height: 20),
+            const SectionLabel('ARCHIVAL CONTROLS'),
+            const SizedBox(height: 12),
+            AppCard(
+              accentColor: Colors.teal,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Create Backup',
+                          'Export to CSV',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         Text(
-                          'Safe encrypted backup',
+                          'Download all data as CSV files',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: AppTheme.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          icon: const Icon(Icons.save),
-                          label: const Text('Backup Now'),
-                          onPressed: _createBackup,
-                        ),
                       ],
+                    ),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.download),
+                      label: const Text('Export'),
+                      style: _brightActionButtonStyle(),
+                      onPressed: _exportCsv,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const SectionLabel('SYSTEM INTEGRITY'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: AppCard(
+                    accentColor: AppTheme.accent,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create Backup',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Safe encrypted backup',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            icon: const Icon(Icons.save),
+                            label: const Text('Backup Now'),
+                            style: _brightActionButtonStyle(),
+                            onPressed: _createBackup,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: AppCard(
-                  accentColor: Colors.orange,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Restore Backup',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: AppCard(
+                    accentColor: Colors.orange,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Restore Backup',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Restore from backup file',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppTheme.textSecondary,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Restore from backup file',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          icon: const Icon(Icons.restore),
-                          label: const Text('Restore'),
-                          onPressed: _restoreBackup,
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            icon: const Icon(Icons.restore),
+                            label: const Text('Restore'),
+                            style: _brightActionButtonStyle(),
+                            onPressed: _restoreBackup,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -399,6 +387,7 @@ class _BackupDialog extends StatefulWidget {
 class _BackupDialogState extends State<_BackupDialog> {
   final _passwordCtrl = TextEditingController();
   bool _saving = false;
+  String? _errorMsg;
 
   @override
   void dispose() {
@@ -407,14 +396,20 @@ class _BackupDialogState extends State<_BackupDialog> {
   }
 
   Future<void> _save() async {
-    if (_passwordCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password is required')),
-      );
+    final password = _passwordCtrl.text;
+    if (password.isEmpty) {
+      setState(() => _errorMsg = 'Password is required.');
       return;
     }
-    setState(() => _saving = true);
-    final success = await widget.onBackup(_passwordCtrl.text);
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query('app_settings', limit: 1);
+    final storedHash = rows.isEmpty ? null : rows.first['app_password_hash'] as String?;
+    if (storedHash == null || !AppHelpers.verifyPassword(password, storedHash)) {
+      setState(() => _errorMsg = 'Incorrect password. Please enter your login password.');
+      return;
+    }
+    setState(() { _saving = true; _errorMsg = null; });
+    final success = await widget.onBackup(password);
     if (!mounted) return;
     if (success) {
       Navigator.pop(context);
@@ -425,39 +420,60 @@ class _BackupDialogState extends State<_BackupDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create Backup'),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SizedBox(
         width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Enter a password to encrypt your backup',
-              style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _passwordCtrl,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Create Backup', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              Text(
+                'Enter your login password to create a backup',
+                style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
               ),
-              obscureText: true,
-            ),
-          ],
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _passwordCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                obscureText: true,
+              ),
+              if (_errorMsg != null) ...[  
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(_errorMsg!, style: GoogleFonts.inter(fontSize: 12, color: Colors.redAccent)),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 239, 218, 24),
+                      foregroundColor: const Color(0xFF1A1A1A),
+                    ),
+                    child: _saving
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Create'),
+                  ),
+                ],
+              )
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Create'),
-        ),
-      ],
     );
   }
 }
@@ -473,6 +489,7 @@ class _CsvExportDialog extends StatefulWidget {
 class _CsvExportDialogState extends State<_CsvExportDialog> {
   final _passwordCtrl = TextEditingController();
   bool _saving = false;
+  String? _errorMsg;
 
   @override
   void dispose() {
@@ -481,15 +498,20 @@ class _CsvExportDialogState extends State<_CsvExportDialog> {
   }
 
   Future<void> _save() async {
-    if (_passwordCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password is required')),
-      );
+    final password = _passwordCtrl.text;
+    if (password.isEmpty) {
+      setState(() => _errorMsg = 'Password is required.');
       return;
     }
-
-    setState(() => _saving = true);
-    final success = await widget.onExport(_passwordCtrl.text);
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query('app_settings', limit: 1);
+    final storedHash = rows.isEmpty ? null : rows.first['app_password_hash'] as String?;
+    if (storedHash == null || !AppHelpers.verifyPassword(password, storedHash)) {
+      setState(() => _errorMsg = 'Incorrect password. Please enter your login password.');
+      return;
+    }
+    setState(() { _saving = true; _errorMsg = null; });
+    final success = await widget.onExport(password);
     if (!mounted) return;
     if (success) {
       Navigator.pop(context);
@@ -500,39 +522,60 @@ class _CsvExportDialogState extends State<_CsvExportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Export CSV'),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SizedBox(
         width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Enter password before exporting CSV data',
-              style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _passwordCtrl,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Export CSV', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              Text(
+                'Enter your login password before exporting CSV data',
+                style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
               ),
-              obscureText: true,
-            ),
-          ],
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _passwordCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                obscureText: true,
+              ),
+              if (_errorMsg != null) ...[  
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(_errorMsg!, style: GoogleFonts.inter(fontSize: 12, color: Colors.redAccent)),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 239, 218, 24),
+                      foregroundColor: const Color(0xFF1A1A1A),
+                    ),
+                    child: _saving
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Export'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Export'),
-        ),
-      ],
     );
   }
 }
@@ -546,10 +589,30 @@ class _RestoreDialog extends StatefulWidget {
 }
 
 class _RestoreDialogState extends State<_RestoreDialog> {
+  final _passwordCtrl = TextEditingController();
   bool _saving = false;
+  String? _errorMsg;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
+    final password = _passwordCtrl.text;
+    if (password.isEmpty) {
+      setState(() => _errorMsg = 'Password is required.');
+      return;
+    }
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query('app_settings', limit: 1);
+    final storedHash = rows.isEmpty ? null : rows.first['app_password_hash'] as String?;
+    if (storedHash == null || !AppHelpers.verifyPassword(password, storedHash)) {
+      setState(() => _errorMsg = 'Incorrect password. Please enter your login password.');
+      return;
+    }
+    setState(() { _saving = true; _errorMsg = null; });
     final success = await widget.onRestore();
     if (!mounted) return;
     if (success) {
@@ -561,34 +624,67 @@ class _RestoreDialogState extends State<_RestoreDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Restore Backup'),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SizedBox(
         width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Select your backup CSV ZIP file to import data into this system.',
-              style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Imported records merge with current data, and matching records are overwritten.',
-              style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Restore Backup', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              Text(
+                'Select your backup CSV ZIP file to import data into this system.',
+                style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Imported records merge with current data, and matching records are overwritten.',
+                style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                obscureText: true,
+              ),
+              if (_errorMsg != null) ...[  
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(_errorMsg!, style: GoogleFonts.inter(fontSize: 12, color: Colors.redAccent)),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 239, 218, 24),
+                      foregroundColor: const Color(0xFF1A1A1A),
+                    ),
+                    child: _saving
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Restore'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Restore'),
-        ),
-      ],
     );
   }
 }
+
+

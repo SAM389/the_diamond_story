@@ -143,8 +143,61 @@ class BackupService {
     final timestamp = DateTime.now()
         .toIso8601String()
         .substring(0, 19)
+        .replaceAll('T', '_T_')
         .replaceAll(':', '-');
     return 'diamond_export_$timestamp.zip';
+  }
+
+  /// Resets all business data and restores default seed categories.
+  /// App settings (like password) are intentionally preserved.
+  static Future<void> resetApplicationData() async {
+    final db = await DatabaseHelper.instance.database;
+    final now = DateTime.now().toIso8601String();
+
+    await db.transaction((txn) async {
+      for (final table in _csvImportOrder.reversed) {
+        await txn.delete(table);
+      }
+
+      await txn.rawDelete(
+        '''
+        DELETE FROM sqlite_sequence
+        WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          'expense_categories',
+          'parties',
+          'rough_stones',
+          'diamonds',
+          'process_types',
+          'processes',
+          'purchases',
+          'sales',
+          'payments',
+        ],
+      );
+
+      for (final name in ['Cutting', 'Polishing', 'Shining', 'Grading']) {
+        await txn.insert('process_types', {
+          'name': name,
+          'cost': 0,
+          'created_at': now,
+        });
+      }
+
+      for (final name in [
+        'Rent',
+        'Electricity',
+        'Salary',
+        'Transport',
+        'Miscellaneous',
+      ]) {
+        await txn.insert('expense_categories', {
+          'name': name,
+          'created_at': now,
+        });
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
