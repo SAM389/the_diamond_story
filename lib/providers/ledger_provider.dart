@@ -117,9 +117,48 @@ class LedgerProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateSale(Sale sale) async {
+    try {
+      await _saleRepo.update(sale);
+      _sales = await _saleRepo.getAll();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> deleteSale(int id) async {
     try {
       await _saleRepo.delete(id);
+      _sales = await _saleRepo.getAll();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> restoreSale(int id) async {
+    try {
+      await _saleRepo.restore(id);
+      _sales = await _saleRepo.getAll();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> hardDeleteSale(int id) async {
+    try {
+      await _saleRepo.hardDelete(id);
       _sales = await _saleRepo.getAll();
       notifyListeners();
       return true;

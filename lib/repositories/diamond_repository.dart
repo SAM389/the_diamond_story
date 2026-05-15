@@ -4,6 +4,55 @@ import '../models/diamond.dart';
 class DiamondRepository {
   final _db = DatabaseHelper.instance;
 
+  Future<void> reconcileSaleStatuses() async {
+    final db = await _db.database;
+
+    // Keep compatibility with databases that may not have sale_items yet.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sale_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sale_id INTEGER NOT NULL,
+        diamond_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+    final salesColumns = await db.rawQuery('PRAGMA table_info(sales)');
+    final hasDeletedAt = salesColumns.any((c) => c['name'] == 'deleted_at');
+    if (!hasDeletedAt) {
+      await db.execute('ALTER TABLE sales ADD COLUMN deleted_at TEXT');
+    }
+
+    // Any diamond referenced by either new or legacy sales storage should be sold.
+    await db.execute('''
+      UPDATE diamonds
+      SET status = 'sold'
+      WHERE id IN (
+        SELECT si.diamond_id
+        FROM sale_items si
+        INNER JOIN sales s ON s.id = si.sale_id
+        WHERE s.deleted_at IS NULL
+        UNION
+        SELECT diamond_id FROM sales WHERE diamond_id IS NOT NULL AND deleted_at IS NULL
+      )
+    ''');
+
+    // Release sold status for diamonds no longer referenced by any sale.
+    await db.execute('''
+      UPDATE diamonds
+      SET status = 'completed'
+      WHERE status = 'sold'
+        AND id NOT IN (
+          SELECT si.diamond_id
+          FROM sale_items si
+          INNER JOIN sales s ON s.id = si.sale_id
+          WHERE s.deleted_at IS NULL
+          UNION
+          SELECT diamond_id FROM sales WHERE diamond_id IS NOT NULL AND deleted_at IS NULL
+        )
+    ''');
+  }
+
   Future<List<Diamond>> getAll() async {
     final db = await _db.database;
     final maps = await db.query('diamonds', orderBy: 'created_at DESC');
@@ -80,17 +129,20 @@ class DiamondRepository {
     return result.first['cnt'] as int;
   }
 
-  /// Split a rough lot into multiple diamonds
-  Future<void> splitLot(String lotNo, List<String> codes, double totalWeight) async {
+  /// Split a rough lot into multiple diamonds using explicit per-item weights.
+  Future<void> splitLot(String lotNo, List<String> codes, List<double> weights) async {
+    if (codes.length != weights.length) {
+      throw ArgumentError('Codes and weights length must be the same.');
+    }
+
     final db = await _db.database;
     final now = DateTime.now().toIso8601String();
-    final weightEach = codes.isEmpty ? 0.0 : totalWeight / codes.length;
     final batch = db.batch();
-    for (final code in codes) {
+    for (var i = 0; i < codes.length; i++) {
       batch.insert('diamonds', {
         'parent_lot': lotNo,
-        'diamond_code': code,
-        'weight': weightEach,
+        'diamond_code': codes[i],
+        'weight': weights[i],
         'status': 'raw',
         'created_at': now,
       });

@@ -452,25 +452,125 @@ class _SplitLotDialog extends StatefulWidget {
   State<_SplitLotDialog> createState() => _SplitLotDialogState();
 }
 
+enum _SplitMode { equal, custom }
+
 class _SplitLotDialogState extends State<_SplitLotDialog> {
   static const Color _brightActionYellow = Color.fromARGB(255, 239, 218, 24);
+  static const double _sumTolerance = 0.001;
+  static const String _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
   final _countCtrl = TextEditingController(text: '2');
+  final List<TextEditingController> _weightCtrls = [];
+  _SplitMode _mode = _SplitMode.equal;
   bool _splitting = false;
 
   @override
-  void dispose() { _countCtrl.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    _syncWeightControllers();
+  }
+
+  int _currentCount() => int.tryParse(_countCtrl.text.trim()) ?? 0;
+
+  void _syncWeightControllers() {
+    final count = _currentCount();
+    if (count < 1 || count > 26) {
+      for (final ctrl in _weightCtrls) {
+        ctrl.dispose();
+      }
+      _weightCtrls.clear();
+      return;
+    }
+
+    while (_weightCtrls.length < count) {
+      _weightCtrls.add(TextEditingController());
+    }
+
+    while (_weightCtrls.length > count) {
+      _weightCtrls.removeLast().dispose();
+    }
+  }
+
+  List<String> _codesForCount(int count) {
+    return List.generate(count, (i) => '${widget.stone.lotNo}${_letters[i]}');
+  }
+
+  List<double>? _parseCustomWeights() {
+    final weights = <double>[];
+    for (final ctrl in _weightCtrls) {
+      final weight = double.tryParse(ctrl.text.trim());
+      if (weight == null || weight <= 0) {
+        return null;
+      }
+      weights.add(weight);
+    }
+    return weights;
+  }
+
+  double _enteredCustomTotal() {
+    var total = 0.0;
+    for (final ctrl in _weightCtrls) {
+      final weight = double.tryParse(ctrl.text.trim());
+      if (weight != null && weight > 0) {
+        total += weight;
+      }
+    }
+    return total;
+  }
+
+  double _sum(List<double> values) {
+    return values.fold<double>(0.0, (total, value) => total + value);
+  }
+
+  @override
+  void dispose() {
+    _countCtrl.dispose();
+    for (final ctrl in _weightCtrls) {
+      ctrl.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _split() async {
-    final count = int.tryParse(_countCtrl.text.trim()) ?? 0;
+    final count = _currentCount();
     if (count < 1 || count > 26) {
       showErrorSnack(context, 'Enter a number between 1 and 26.');
       return;
     }
 
+    _syncWeightControllers();
+
+    late final List<double> weights;
+    if (_mode == _SplitMode.equal) {
+      final weightEach = widget.stone.weight / count;
+      weights = List<double>.generate(count, (_) => weightEach);
+    } else {
+      final parsed = _parseCustomWeights();
+      if (parsed == null) {
+        showErrorSnack(
+          context,
+          'Enter a valid weight greater than 0 for each diamond.',
+        );
+        return;
+      }
+      final total = _sum(parsed);
+      if ((total - widget.stone.weight).abs() > _sumTolerance) {
+        showErrorSnack(
+          context,
+          'Custom weights total ${total.toStringAsFixed(3)} ct must match ${widget.stone.weight.toStringAsFixed(3)} ct.',
+        );
+        return;
+      }
+      weights = parsed;
+    }
+
     setState(() => _splitting = true);
     final provider = context.read<InventoryProvider>();
-    final ok = await provider.splitLot(widget.stone.lotNo, count, widget.stone.weight);
+    final ok = await provider.splitLot(
+      widget.stone.lotNo,
+      weights,
+      expectedTotalWeight: widget.stone.weight,
+    );
 
     if (mounted) {
       Navigator.pop(context);
@@ -484,11 +584,17 @@ class _SplitLotDialogState extends State<_SplitLotDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final count = _currentCount();
+    final validCount = count >= 1 && count <= 26;
+    final codes = validCount ? _codesForCount(count) : <String>[];
+    final customWeights = _parseCustomWeights();
+    final customTotal = _enteredCustomTotal();
+
     return Dialog(
       backgroundColor: const Color(0xFFFFFFFF),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
+        constraints: const BoxConstraints(maxWidth: 460),
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(
@@ -498,19 +604,134 @@ class _SplitLotDialogState extends State<_SplitLotDialog> {
               Text('Split ${widget.stone.lotNo}', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
               const SizedBox(height: 4),
               Text('Total weight: ${widget.stone.weight.toStringAsFixed(3)} ct', style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary)),
-              const SizedBox(height: 24),
-              AppFormField(label: 'Number of Diamonds', required: true, child: TextField(controller: _countCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: '1 \u2014 26'), onChanged: (_) => setState(() {}))),
-              const SizedBox(height: 8),
-              ValueListenableBuilder(
-                valueListenable: _countCtrl,
-                builder: (context, value, child) {
-                  final n = int.tryParse(_countCtrl.text) ?? 0;
-                  if (n < 1 || n > 26) return const SizedBox();
-                  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                  final codes = List.generate(n, (i) => '${widget.stone.lotNo}${letters[i]}');
-                  return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)), child: Text('Will create: ${codes.join(', ')}', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.accent)));
-                },
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  ChoiceChip(
+                    label: const Text('Equal Split'),
+                    selected: _mode == _SplitMode.equal,
+                    selectedColor: _brightActionYellow,
+                    labelStyle: const TextStyle(color: Color(0xFF1A1A1A)),
+                    onSelected: _splitting
+                        ? null
+                        : (_) => setState(() => _mode = _SplitMode.equal),
+                  ),
+                  const SizedBox(width: 10),
+                  ChoiceChip(
+                    label: const Text('Custom Weights'),
+                    selected: _mode == _SplitMode.custom,
+                    selectedColor: _brightActionYellow,
+                    labelStyle: const TextStyle(color: Color(0xFF1A1A1A)),
+                    onSelected: _splitting
+                        ? null
+                        : (_) => setState(() {
+                              _mode = _SplitMode.custom;
+                              _syncWeightControllers();
+                            }),
+                  ),
+                ],
               ),
+              const SizedBox(height: 24),
+              AppFormField(
+                label: 'Number of Diamonds',
+                required: true,
+                child: TextField(
+                  controller: _countCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(hintText: '1 \u2014 26'),
+                  onChanged: (_) => setState(() {
+                    _syncWeightControllers();
+                  }),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (!validCount)
+                Text(
+                  'Enter a number between 1 and 26.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _mode == _SplitMode.equal
+                        ? 'Will create: ${codes.join(', ')}\nEach: ${(widget.stone.weight / count).toStringAsFixed(3)} ct'
+                        : 'Will create: ${codes.join(', ')}',
+                    style: GoogleFonts.inter(fontSize: 12, color: AppTheme.accent),
+                  ),
+                ),
+              if (_mode == _SplitMode.custom && validCount) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Enter weight for each stone:',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 210,
+                  child: ListView.separated(
+                    itemCount: count,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      return Row(
+                        children: [
+                          SizedBox(
+                            width: 90,
+                            child: Text(
+                              codes[i],
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _weightCtrls[i],
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: 'Weight (ct)',
+                                isDense: true,
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Entered total: ${customTotal.toStringAsFixed(3)} ct / ${widget.stone.weight.toStringAsFixed(3)} ct',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: customWeights == null ||
+                            (customTotal - widget.stone.weight).abs() >
+                                _sumTolerance
+                        ? Colors.orange.shade800
+                        : const Color(0xFF2E7D32),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),

@@ -29,6 +29,7 @@ class InventoryProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _roughStones = await _roughRepo.getAll();
+      await _diamondRepo.reconcileSaleStatuses();
       _diamonds = await _diamondRepo.getAll();
     } catch (e) {
       _error = e.toString();
@@ -44,6 +45,7 @@ class InventoryProvider extends ChangeNotifier {
   }
 
   Future<void> loadDiamonds() async {
+    await _diamondRepo.reconcileSaleStatuses();
     _diamonds = await _diamondRepo.getAll();
     notifyListeners();
   }
@@ -139,9 +141,35 @@ class InventoryProvider extends ChangeNotifier {
     }
   }
 
-  /// Split a lot into N diamonds
-  Future<bool> splitLot(String lotNo, int count, double totalWeight) async {
+  /// Split a lot into diamonds with explicit weights.
+  Future<bool> splitLot(
+    String lotNo,
+    List<double> weights, {
+    double? expectedTotalWeight,
+  }) async {
     try {
+      if (weights.isEmpty || weights.length > 26) {
+        _error = 'Enter between 1 and 26 diamonds.';
+        notifyListeners();
+        return false;
+      }
+
+      if (weights.any((w) => w <= 0)) {
+        _error = 'Each diamond weight must be greater than 0.';
+        notifyListeners();
+        return false;
+      }
+
+      if (expectedTotalWeight != null) {
+        final total = weights.fold<double>(0.0, (sum, w) => sum + w);
+        if ((total - expectedTotalWeight).abs() > 0.001) {
+          _error =
+              'Entered split weights (${total.toStringAsFixed(3)} ct) must match lot weight (${expectedTotalWeight.toStringAsFixed(3)} ct).';
+          notifyListeners();
+          return false;
+        }
+      }
+
       final existingDiamonds = await _diamondRepo.getByParentLot(lotNo);
       if (existingDiamonds.isNotEmpty) {
         _error = 'Lot $lotNo is already split into diamonds.';
@@ -149,8 +177,9 @@ class InventoryProvider extends ChangeNotifier {
         return false;
       }
 
+      final count = weights.length;
       final codes = AppHelpers.splitLot(lotNo, count);
-      await _diamondRepo.splitLot(lotNo, codes, totalWeight);
+      await _diamondRepo.splitLot(lotNo, codes, weights);
       await loadDiamonds();
       return true;
     } catch (e) {

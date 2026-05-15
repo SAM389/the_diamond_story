@@ -1,0 +1,24 @@
+THE DIAMOND STORY - END USER LICENSE AGREEMENT
+
+Please read this agreement carefully before installing or using this software.
+
+1. GRANT OF LICENSE
+You are granted a non-exclusive, non-transferable right to install and use this software on your device for lawful business or personal purposes.
+
+2. RESTRICTIONS
+You may not reverse engineer, decompile, or redistribute modified versions of this software without prior written permission from the publisher.
+
+3. DATA RESPONSIBILITY
+You are responsible for your own data backups and operational usage. The publisher is not responsible for data loss caused by misuse, device failure, or third-party software.
+
+4. NO WARRANTY
+This software is provided "AS IS" without warranties of any kind, express or implied, including but not limited to fitness for a particular purpose.
+
+5. LIMITATION OF LIABILITY
+To the maximum extent permitted by law, the publisher shall not be liable for any indirect, incidental, or consequential damages arising from use of the software.
+
+6. TERMINATION
+This license terminates automatically if you fail to comply with this agreement.
+
+7. ACCEPTANCE
+By selecting "I accept the agreement" and installing this software, you acknowledge that you have read and agree to this license.

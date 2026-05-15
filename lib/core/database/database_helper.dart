@@ -28,7 +28,7 @@ class DatabaseHelper {
     
     return await openDatabase(
       path,
-      version: 3,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       onOpen: _onOpen,
@@ -52,6 +52,22 @@ class DatabaseHelper {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE sale_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sale_id INTEGER NOT NULL,
+        diamond_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_sale_items_sale_id ON sale_items(sale_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_sale_items_diamond_id ON sale_items(diamond_id)',
+    );
 
     await db.execute('''
       CREATE TABLE diamonds (
@@ -121,6 +137,8 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE sales (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bill_no TEXT,
+        deleted_at TEXT,
         party_id INTEGER,
         diamond_id INTEGER,
         price REAL,
@@ -129,6 +147,7 @@ class DatabaseHelper {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
+    await db.execute('CREATE UNIQUE INDEX idx_sales_bill_no ON sales(bill_no)');
 
     await db.execute('''
       CREATE TABLE payments (
@@ -178,13 +197,105 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       await _ensurePurchaseAutoSyncColumns(db);
     }
+    if (oldVersion < 4) {
+      await _ensureSaleItemsTableAndBackfill(db);
+    }
+    if (oldVersion < 5) {
+      await _ensureSalesBillNo(db);
+    }
+    if (oldVersion < 6) {
+      await _ensureSalesSoftDelete(db);
+    }
   }
 
   Future<void> _onOpen(Database db) async {
     // Keep schema resilient even if users have older local DBs.
     await _ensureProcessCostColumns(db);
     await _ensurePurchaseAutoSyncColumns(db);
+    await _ensureSaleItemsTableAndBackfill(db);
     await _restoreLegacyDataIfNeeded(db, 'diamond_story_v1.db');
+    await _ensureSalesBillNo(db);
+    await _ensureSalesSoftDelete(db);
+  }
+
+  Future<void> _ensureSalesSoftDelete(Database db) async {
+    final salesColumns = await db.rawQuery('PRAGMA table_info(sales)');
+    final hasDeletedAt = salesColumns.any((c) => c['name'] == 'deleted_at');
+    if (!hasDeletedAt) {
+      await db.execute('ALTER TABLE sales ADD COLUMN deleted_at TEXT');
+    }
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sales_deleted_at ON sales(deleted_at)',
+    );
+  }
+
+  Future<void> _ensureSalesBillNo(Database db) async {
+    final salesColumns = await db.rawQuery('PRAGMA table_info(sales)');
+    final hasBillNo = salesColumns.any((c) => c['name'] == 'bill_no');
+    if (!hasBillNo) {
+      await db.execute('ALTER TABLE sales ADD COLUMN bill_no TEXT');
+    }
+
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_bill_no ON sales(bill_no)',
+    );
+
+    final rows = await db.query(
+      'sales',
+      columns: ['id'],
+      where: "bill_no IS NULL OR TRIM(bill_no) = ''",
+      orderBy: 'datetime(created_at) ASC, id ASC',
+    );
+    if (rows.isEmpty) return;
+
+    final maxSeqResult = await db.rawQuery('''
+      SELECT MAX(CAST(SUBSTR(bill_no, 6) AS INTEGER)) AS seq
+      FROM sales
+      WHERE bill_no LIKE 'BILL-%'
+    ''');
+    var nextSeq = ((maxSeqResult.first['seq'] as num?)?.toInt() ?? 0) + 1;
+
+    for (final row in rows) {
+      final id = (row['id'] as num).toInt();
+      final billNo = 'BILL-${nextSeq.toString().padLeft(6, '0')}';
+      await db.update('sales', {'bill_no': billNo}, where: 'id = ?', whereArgs: [id]);
+      nextSeq++;
+    }
+  }
+
+  Future<void> _ensureSaleItemsTableAndBackfill(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sale_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sale_id INTEGER NOT NULL,
+        diamond_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sale_items_diamond_id ON sale_items(diamond_id)',
+    );
+
+    final saleColumns = await db.rawQuery('PRAGMA table_info(sales)');
+    final hasLegacyDiamondId = saleColumns.any((c) => c['name'] == 'diamond_id');
+    if (!hasLegacyDiamondId) return;
+
+    // Backfill legacy one-diamond sales into sale_items exactly once.
+    await db.execute('''
+      INSERT INTO sale_items (sale_id, diamond_id, amount, created_at)
+      SELECT s.id, s.diamond_id, COALESCE(s.price, 0), COALESCE(s.created_at, CURRENT_TIMESTAMP)
+      FROM sales s
+      WHERE s.diamond_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM sale_items si
+          WHERE si.sale_id = s.id AND si.diamond_id = s.diamond_id
+        )
+    ''');
   }
 
   Future<void> _ensureProcessCostColumns(Database db) async {
@@ -248,6 +359,7 @@ class DatabaseHelper {
       'parties',
       'purchases',
       'sales',
+      'sale_items',
       'payments',
     ]) {
       if (!await _tableExists(db, table)) continue;
@@ -277,6 +389,7 @@ class DatabaseHelper {
       'processes',
       'purchases',
       'sales',
+      'sale_items',
       'payments',
     ];
 
